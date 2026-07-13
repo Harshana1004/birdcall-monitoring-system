@@ -26,7 +26,7 @@ The project is divided into two major components:
 
 Hardware
 
-* ESP32-S3 Development Board (with PSRAM)
+* ESP32-S3 Development Board
 * INMP441 I2S MEMS Microphone
 * SIMA7670C FS-MCore 4G LTE Module
 * SPI MicroSD Card Module
