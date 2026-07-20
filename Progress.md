@@ -29,9 +29,9 @@ Shows the amplitude of the recording after normalisation.
 
 ### 2. Short-Time Energy
 
-Illustrates how the Short-Time Energy changes throughout the recording.
+Shows how the Short-Time Energy changes throughout the recording.
 
-This graph was used to determine the detection threshold for identifying candidate bird calls.
+This graph was used to determine the detection threshold for identifying possible bird calls.
 
 ![Energy](outputs/energy/common_myna_energy.png)
 
@@ -53,7 +53,7 @@ Several extraction strategies were evaluated.
 
 | Strategy | Result |
 |----------|--------|
-| Variable-length RoIs | Good baseline |
+| Variable-length RoIs | Good |
 | Fixed 3-second windows (surrounding audio) | Lower classification performance |
 | Exact RoIs padded to 3 seconds | Best overall performance |
 | 2-second minimum duration | Similar results but lower average confidence |
@@ -62,11 +62,11 @@ Several extraction strategies were evaluated.
 
 The final implementation extracts the exact detected RoI.
 
-- RoIs shorter than 3 seconds are centre-padded with silence.
-- RoIs longer than 3 seconds are preserved.
-- BirdNET internally analyses long recordings using multiple 3-second windows.
+- RoIs shorter than 3 seconds are padded with silence.
+- RoIs longer than 3 seconds are unchanged.
+- BirdNET internally analyses long recordings using multiple 3 second intervals.
 
-This approach preserves the detected bird vocalisation while avoiding unrelated surrounding audio.
+This maintained the detected bird vocalisation while avoiding unrelated surrounding audio.
 
 ---
 
