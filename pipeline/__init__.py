@@ -1,0 +1,1 @@
+"""Birdcall monitoring pipeline package."""

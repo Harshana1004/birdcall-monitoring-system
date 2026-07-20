@@ -1,0 +1,7 @@
+numpy
+scipy
+librosa
+matplotlib
+soundfile
+scipy
+birdnet

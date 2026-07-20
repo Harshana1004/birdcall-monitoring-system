@@ -1,23 +1,30 @@
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+
+# Python package/build files
+build/
+
+# Testing and coverage
+.pytest_cache/
+
 .vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-files
-*.bclicense
-*.flf
-#Test results file
-TestResults.xml
+
+# Ignore WAV recordings and generated snippets
+*.wav
+
+outputs/snippets/
+outputs/csv/
+
+# Generated result files
+outputs/*.csv
+outputs/**/*.csv
+outputs/*.json
+outputs/**/*.json
+
+
