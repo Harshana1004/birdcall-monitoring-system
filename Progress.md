@@ -82,3 +82,137 @@ Outputs:
 
 ---
 
+---
+
+# Phase 2 - Backend API & Database
+
+## Objectives
+
+### Project Setup
+
+* [x] FastAPI project structure
+* [x] PostgreSQL integration
+* [x] SQLAlchemy Async ORM
+* [x] Alembic migrations
+* [x] Configuration management
+* [x] Global exception handling
+
+---
+
+### Device Management
+
+* [x] Device database model
+* [x] Validation
+* [x] Repository pattern
+* [x] Service layer
+
+---
+
+### Recording Management
+
+* [x] Recording database model
+* [x] Secure audio upload endpoint
+* [x] WAV metadata extraction
+* [x] Duplicate upload detection
+* [x] Capture session support
+* [x] ROI metadata support
+* [x] Recording retrieval
+* [x] Recording deletion
+
+---
+
+### BirdNET Processing Pipeline
+
+Processing workflow:
+
+```text
+ROI Upload
+    ↓
+Recording stored (Pending)
+    ↓
+Background Task
+    ↓
+BirdNET Analysis
+    ↓
+Detection Storage
+    ↓
+Recording Completed
+```
+
+Completed:
+
+* [x] BirdNET service
+* [x] Automatic background processing
+* [x] Recording processing lifecycle
+* [x] Failed processing handling
+
+---
+
+### Detection Management
+
+* [x] Detection database model
+* [x] Detection repository
+* [x] Detection service
+* [x] Detection schemas
+* [x] Detection storage
+* [x] Detection retrieval API
+* [x] Recording-specific detection API
+
+---
+
+## Backend REST API
+
+### Devices
+
+* [x] POST `/api/v1/devices`
+* [x] GET `/api/v1/devices`
+* [x] GET `/api/v1/devices/{id}`
+* [x] PATCH `/api/v1/devices/{id}`
+* [x] DELETE `/api/v1/devices/{id}`
+
+### Recordings
+
+* [x] POST `/api/v1/recordings`
+* [x] GET `/api/v1/recordings`
+* [x] GET `/api/v1/recordings/{id}`
+* [x] GET `/api/v1/recordings/{id}/detections`
+* [x] DELETE `/api/v1/recordings/{id}`
+
+### Detections
+
+* [x] GET `/api/v1/detections`
+* [x] GET `/api/v1/detections/{id}`
+
+### System
+
+* [x] GET `/health`
+* [x] GET `/ready`
+
+---
+
+## Current Backend Status
+
+### Completed
+
+* ✔ Asynchronous FastAPI backend
+* ✔ PostgreSQL database integration
+* ✔ Device management module
+* ✔ Recording upload pipeline
+* ✔ Audio validation and metadata extraction
+* ✔ Background BirdNET processing
+* ✔ Detection persistence
+* ✔ Detection retrieval APIs
+* ✔ Repository–Service architecture
+* ✔ Centralised exception handling
+
+---
+
+## Next Development Milestones
+
+* [ ] Species statistics and analytics endpoints
+* [ ] Recording download endpoint
+* [ ] Authentication and authorization
+* [ ] Frontend dashboard integration
+* [ ] ESP32 end-to-end integration
+* [ ] Production deployment
+* [ ] Monitoring and logging improvements

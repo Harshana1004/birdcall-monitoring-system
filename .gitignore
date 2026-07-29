@@ -28,3 +28,12 @@ outputs/*.json
 outputs/**/*.json
 
 
+
+
+backend/.env
+backend/storage/audio
+!backend/storage/audio/.gitkeep
+
+
+
+
