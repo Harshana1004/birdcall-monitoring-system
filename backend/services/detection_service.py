@@ -18,6 +18,10 @@ from schemas.detection import (
     DetectionSummaryResponse,
 )
 
+from schemas.common import (
+    PaginatedResponse,
+    PaginationMetadata,
+)
 
 class DetectionService:
     """
