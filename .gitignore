@@ -34,6 +34,10 @@ backend/.env
 backend/storage/audio
 !backend/storage/audio/.gitkeep
 
+evaluation/data
+evaluation/results
+evaluation/predictions
+
 
 
 

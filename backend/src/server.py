@@ -106,3 +106,6 @@ async def readiness_check() -> dict[str, str]:
         "status": "ready",
         "database": "available",
     }
+
+
+    #uvicorn src.server:app --reload
