@@ -579,75 +579,10 @@ At the current confidence threshold of `0.25`:
 17.74% of recordings resulted in abstention.
 ```
 
-This indicates that confidence-threshold selection may significantly affect recall.
 
-Therefore, the production value of `0.25` should not be considered optimal until threshold analysis is completed.
 
 ---
 
-## Planned Experiment E1 — Confidence Threshold Analysis
-
-The next BirdNET experiment will investigate the effect of the confidence threshold.
-
-The existing E0 inference used:
-
-```text
-confidence threshold = 0.25
-```
-
-which means predictions below `0.25` were discarded during inference.
-
-A proper threshold experiment therefore requires a separate inference capture run using a much lower threshold, for example:
-
-```text
-evaluation inference floor = 0.01
-```
-
-BirdNET will be run only once at this low threshold and the predictions will be saved.
-
-Thresholds can then be applied offline without repeatedly running BirdNET.
-
-Planned thresholds include:
-
-```text
-0.01
-0.05
-0.10
-0.15
-0.20
-0.25
-0.30
-0.35
-0.40
-0.50
-0.60
-0.70
-0.80
-0.90
-0.95
-```
-
-For each threshold, the following will be measured:
-
-* Top-1 accuracy
-* Precision
-* Recall
-* Macro F1
-* Weighted F1
-* Abstention rate
-* Outside-dataset prediction rate
-
-The objective is to determine the confidence threshold that provides the most appropriate precision-recall trade-off for the monitoring system.
-
-The production backend will remain at:
-
-```text
-BIRDNET_MIN_CONFIDENCE=0.25
-```
-
-until this experiment provides sufficient evidence for changing it.
-
----
 
 ## Current Phase 3 Status
 
