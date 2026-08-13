@@ -14,3 +14,6 @@ pytest
 pytest-asyncio
 httpx
 birdnet==0.2.16
+scipy
+librosa
+matplotlib

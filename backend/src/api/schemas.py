@@ -635,3 +635,210 @@ class DetectionSummaryResponse(
     )
 
     created_at: datetime
+
+
+# ============================================================
+# Manual audio analysis
+# ============================================================
+
+
+class AnalysisDetectionResponse(BaseModel):
+    """
+    One persisted BirdNET prediction produced from a manually
+    generated ROI.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: uuid.UUID
+
+    scientific_name: str
+    common_name: str
+
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+    )
+
+    start_time_seconds: float = Field(
+        ge=0.0,
+    )
+
+    end_time_seconds: float = Field(
+        gt=0.0,
+    )
+
+    model_name: str
+    model_version: str
+
+
+class AnalysisROIResponse(BaseModel):
+    """
+    One detected acoustic ROI belonging to a manual-analysis
+    session.
+    """
+
+    recording_id: uuid.UUID
+
+    snippet_sequence: int = Field(
+        ge=0,
+    )
+
+    roi_start_seconds: float = Field(
+        ge=0.0,
+    )
+
+    roi_end_seconds: float = Field(
+        gt=0.0,
+    )
+
+    original_duration_seconds: float = Field(
+        gt=0.0,
+    )
+
+    stored_duration_seconds: float = Field(
+        gt=0.0,
+    )
+
+    processing_status: ProcessingStatus
+
+    detections: list[
+        AnalysisDetectionResponse
+    ] = Field(
+        default_factory=list
+    )
+
+
+class AnalysisProcessingResponse(BaseModel):
+    """
+    Summary of the backend preprocessing and classification
+    operation.
+    """
+
+    sample_rate: int = Field(
+        gt=0,
+    )
+
+    duration_seconds: float = Field(
+        gt=0.0,
+    )
+
+    energy_threshold: float = Field(
+        ge=0.0,
+    )
+
+    roi_count: int = Field(
+        ge=0,
+    )
+
+    detection_count: int = Field(
+        ge=0,
+    )
+
+    normalization_applied: bool
+
+    high_pass_cutoff_hz: float = Field(
+        gt=0.0,
+    )
+
+
+class AnalysisResponse(BaseModel):
+    """
+    Complete representation of one manual audio-analysis
+    session.
+    """
+
+    capture_session_id: uuid.UUID
+
+    original_filename: str
+
+    capture_started_at: datetime
+
+    processing: (
+        AnalysisProcessingResponse
+    )
+
+    rois: list[
+        AnalysisROIResponse
+    ] = Field(
+        default_factory=list
+    )
+
+
+class AnalysisSummaryResponse(BaseModel):
+    """
+    Compact representation used for analysis history.
+    """
+
+    capture_session_id: uuid.UUID
+
+    original_filename: str
+
+    capture_started_at: datetime
+
+    roi_count: int = Field(
+        ge=0,
+    )
+
+    detection_count: int = Field(
+        ge=0,
+    )
+
+
+class AnalysisVisualizationROIResponse(
+    BaseModel
+):
+    """
+    Lightweight ROI interval used for frontend visualization.
+    """
+
+    recording_id: uuid.UUID
+
+    snippet_sequence: int = Field(
+        ge=0,
+    )
+
+    start_time_seconds: float = Field(
+        ge=0.0,
+    )
+
+    end_time_seconds: float = Field(
+        gt=0.0,
+    )
+
+
+class AnalysisVisualizationResponse(
+    BaseModel
+):
+    """
+    Downsampled waveform and short-time-energy information
+    regenerated from the stored original WAV.
+
+    These arrays are intentionally not stored in PostgreSQL.
+    """
+
+    capture_session_id: uuid.UUID
+
+    waveform_times: list[
+        float
+    ]
+
+    waveform_values: list[
+        float
+    ]
+
+    energy_times: list[
+        float
+    ]
+
+    energy_values: list[
+        float
+    ]
+
+    energy_threshold: float
+
+    rois: list[
+        AnalysisVisualizationROIResponse
+    ]

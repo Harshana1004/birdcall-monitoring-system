@@ -402,9 +402,10 @@ class Recording(Base):
     __table_args__ = (
         UniqueConstraint(
             "device_id",
+            "capture_session_id",
             "checksum_sha256",
             name=(
-                "uq_recordings_device_checksum"
+                "uq_recordings_device_session_checksum"
             ),
         ),
 

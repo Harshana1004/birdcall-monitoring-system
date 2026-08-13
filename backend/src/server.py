@@ -15,15 +15,29 @@ from fastapi.middleware.cors import (
     CORSMiddleware,
 )
 
-from src.api import (
-    detections_router,
-    devices_router,
-    recordings_router,
+from src.api.detections import (
+    router as detections_router,
 )
+from src.api.devices import (
+    router as devices_router,
+)
+from src.api.recordings import (
+    router as recordings_router,
+)
+
+from src.api.analysis import (
+    router as analysis_router,
+)
+
+
 from src.api.exception_handlers import (
     register_exception_handlers,
 )
-from src.core.config import settings
+
+from src.core.config import (
+    settings,
+)
+
 from src.database import (
     check_database_connection,
     close_database_connection,
@@ -54,13 +68,13 @@ async def lifespan(
         exist_ok=True,
     )
 
-    settings.demo_storage_directory.mkdir(
+    settings.analysis_storage_directory.mkdir(
         parents=True,
         exist_ok=True,
     )
 
     # --------------------------------------------------------
-    # Verify PostgreSQL
+    # Verify PostgreSQL connection
     # --------------------------------------------------------
 
     database_available = (
@@ -87,15 +101,27 @@ async def lifespan(
 
 
 app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
+    title=(
+        settings.app_name
+    ),
+    version=(
+        settings.app_version
+    ),
     description=(
         "Backend API for the BirdCall Monitoring System."
     ),
-    debug=settings.debug,
-    lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    debug=(
+        settings.debug
+    ),
+    lifespan=(
+        lifespan
+    ),
+    docs_url=(
+        "/docs"
+    ),
+    redoc_url=(
+        "/redoc"
+    ),
 )
 
 
@@ -146,6 +172,9 @@ app.include_router(
     detections_router
 )
 
+app.include_router(
+    analysis_router
+)
 
 # ============================================================
 # System endpoints
@@ -154,7 +183,9 @@ app.include_router(
 
 @app.get(
     "/health",
-    tags=["System"],
+    tags=[
+        "System"
+    ],
 )
 async def health_check(
 ) -> dict[
@@ -166,10 +197,14 @@ async def health_check(
     """
 
     return {
-        "status": "healthy",
+        "status": (
+            "healthy"
+        ),
+
         "environment": (
             settings.app_environment
         ),
+
         "version": (
             settings.app_version
         ),
@@ -178,7 +213,9 @@ async def health_check(
 
 @app.get(
     "/ready",
-    tags=["System"],
+    tags=[
+        "System"
+    ],
 )
 async def readiness_check(
     response: Response,
@@ -200,14 +237,21 @@ async def readiness_check(
         )
 
         return {
-            "status": "not_ready",
-            "database": "unavailable",
+            "status": (
+                "not_ready"
+            ),
+
+            "database": (
+                "unavailable"
+            ),
         }
 
     return {
-        "status": "ready",
-        "database": "available",
+        "status": (
+            "ready"
+        ),
+
+        "database": (
+            "available"
+        ),
     }
-
-
-    #uvicorn src.server:app --reload
