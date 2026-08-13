@@ -28,6 +28,14 @@ BACKEND_DIRECTORY = (
 )
 
 
+# Add backend/ to the Python import path so that the runtime
+# package can be imported exactly as it is by the application:
+#
+#     from src...
+#
+# Do NOT import using "backend.src", because doing so would load
+# the same modules under a second package name and create a
+# separate SQLAlchemy Base instance.
 if str(BACKEND_DIRECTORY) not in sys.path:
     sys.path.insert(
         0,
@@ -40,11 +48,12 @@ if str(BACKEND_DIRECTORY) not in sys.path:
 # ============================================================
 
 
-from backend.src.core.config import settings
-from backend.src.database import Base
+from src.core.config import settings
+from src.database import Base
 
-# Import ORM models so they are registered in Base.metadata.
-from backend.src.models import (
+# Import all ORM models so that they are registered with the
+# exact same Base.metadata instance used by the application.
+from src.models import (
     Detection,
     Device,
     Recording,
@@ -59,7 +68,7 @@ from backend.src.models import (
 config = context.config
 
 
-# Use the same PostgreSQL URL as the running backend.
+# Use the same PostgreSQL connection URL as the running backend.
 config.set_main_option(
     "sqlalchemy.url",
     settings.database_url,
@@ -77,6 +86,10 @@ target_metadata = (
 
 
 def run_migrations_offline() -> None:
+    """
+    Run migrations without creating a live database connection.
+    """
+
     url = config.get_main_option(
         "sqlalchemy.url"
     )
@@ -86,7 +99,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={
-            "paramstyle": "named"
+            "paramstyle": "named",
         },
         compare_type=True,
     )
@@ -103,6 +116,11 @@ def run_migrations_offline() -> None:
 def do_run_migrations(
     connection,
 ) -> None:
+    """
+    Configure Alembic using an existing synchronous connection
+    supplied by SQLAlchemy's async bridge.
+    """
+
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -114,10 +132,14 @@ def do_run_migrations(
 
 
 async def run_async_migrations() -> None:
+    """
+    Run Alembic using the backend's async PostgreSQL driver.
+    """
+
     configuration = (
         config.get_section(
             config.config_ini_section,
-            {}
+            {},
         )
     )
 
@@ -138,6 +160,10 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    """
+    Entry point for online asynchronous migrations.
+    """
+
     asyncio.run(
         run_async_migrations()
     )
