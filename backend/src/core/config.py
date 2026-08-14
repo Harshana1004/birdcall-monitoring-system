@@ -95,11 +95,11 @@ class Settings(BaseSettings):
     # Upload validation
     # --------------------------------------------------------
 
-    max_upload_size_mb: int = Field(
-        default=25,
-        ge=1,
-        le=500,
-    )
+    # max_upload_size_mb: int = Field(
+    #     default=25,
+    #     ge=1,
+    #     le=500,
+    # )
 
     allowed_audio_extensions: str = (
         "wav"
@@ -140,7 +140,7 @@ class Settings(BaseSettings):
     )
 
     birdnet_min_confidence: float = Field(
-        default=0.25,
+        default=0.05,
         ge=0.0,
         le=1.0,
     )
@@ -223,15 +223,15 @@ class Settings(BaseSettings):
             if extension.strip()
         }
 
-    @property
-    def max_upload_size_bytes(
-        self,
-    ) -> int:
-        return (
-            self.max_upload_size_mb
-            * 1024
-            * 1024
-        )
+    # @property
+    # def max_upload_size_bytes(
+    #     self,
+    # ) -> int:
+    #     return (
+    #         self.max_upload_size_mb
+    #         * 1024
+    #         * 1024
+    #     )
 
 
 # ============================================================

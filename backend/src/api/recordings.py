@@ -43,6 +43,11 @@ from src.services.recordings import (
     process_recording_background,
 )
 
+from pathlib import Path
+from fastapi.responses import FileResponse
+from src.database import get_db
+
+
 
 router = APIRouter(
     prefix="/api/v1/recordings",
@@ -644,4 +649,42 @@ async def delete_recording(
         status_code=(
             status.HTTP_204_NO_CONTENT
         )
+    )
+
+
+@router.get(
+    "/{recording_id}/audio",
+    response_class=FileResponse,
+)
+async def get_recording_audio(
+    recording_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    """
+    Stream the stored WAV belonging to one Recording.
+    """
+
+    service = RecordingService(
+        session
+    )
+
+    recording = await service.get_recording(
+        recording_id
+    )
+
+    file_path = Path(
+        recording.file_path
+    )
+
+    if not file_path.exists():
+        raise FileNotFoundError(
+            "Stored audio file could not be found."
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type="audio/wav",
+        filename=(
+            recording.stored_filename
+        ),
     )

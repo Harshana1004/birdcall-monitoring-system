@@ -162,15 +162,15 @@ async def _save_upload_temporarily(
                     chunk
                 )
 
-                if (
-                    total_size
-                    > settings.max_upload_size_bytes
-                ):
-                    raise InvalidAudioFileError(
-                        "The uploaded file exceeds the "
-                        f"{settings.max_upload_size_mb} MB "
-                        "size limit."
-                    )
+                # if (
+                #     total_size
+                #     > settings.max_upload_size_bytes
+                # ):
+                #     raise InvalidAudioFileError(
+                #         "The uploaded file exceeds the "
+                #         f"{settings.max_upload_size_mb} MB "
+                #         "size limit."
+                #     )
 
                 output_file.write(
                     chunk
@@ -500,7 +500,7 @@ async def analyze_audio(
             ),
 
             rois=(
-                visualization_rois
+                roi_responses
             ),
         )
 
