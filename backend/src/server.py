@@ -255,3 +255,5 @@ async def readiness_check(
             "available"
         ),
     }
+
+#uvicorn src.server:app --reload

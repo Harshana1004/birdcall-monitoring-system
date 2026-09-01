@@ -120,9 +120,13 @@ class AudioStorage:
                         chunk
                     )
 
+                    max_size = (
+                        settings.max_upload_size_bytes
+                    )
+
                     if (
-                        total_size
-                        > settings.max_upload_size_bytes
+                        max_size is not None
+                        and total_size > max_size
                     ):
                         raise AudioFileTooLargeError(
                             "The uploaded file exceeds the "

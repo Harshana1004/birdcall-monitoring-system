@@ -95,11 +95,15 @@ class Settings(BaseSettings):
     # Upload validation
     # --------------------------------------------------------
 
-    # max_upload_size_mb: int = Field(
-    #     default=25,
-    #     ge=1,
-    #     le=500,
-    # )
+    # No default limit: manual uploads and ROI snippets are
+    # generally well under a size that would need capping, so
+    # this is left unbounded (None) unless explicitly set via
+    # .env (e.g. MAX_UPLOAD_SIZE_MB=100).
+    max_upload_size_mb: int | None = Field(
+        default=None,
+        ge=1,
+        le=2048,
+    )
 
     allowed_audio_extensions: str = (
         "wav"
@@ -223,15 +227,18 @@ class Settings(BaseSettings):
             if extension.strip()
         }
 
-    # @property
-    # def max_upload_size_bytes(
-    #     self,
-    # ) -> int:
-    #     return (
-    #         self.max_upload_size_mb
-    #         * 1024
-    #         * 1024
-    #     )
+    @property
+    def max_upload_size_bytes(
+        self,
+    ) -> int | None:
+        if self.max_upload_size_mb is None:
+            return None
+
+        return (
+            self.max_upload_size_mb
+            * 1024
+            * 1024
+        )
 
 
 # ============================================================
