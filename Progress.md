@@ -608,5 +608,245 @@ At the current confidence threshold of `0.25`:
 * [ ] Edge preprocessing vs raw-audio comparison
 * [ ] Independent field-recording evaluation
 
+
+
+---
+
+# Phase 4 — Embedded DSP Implementation
+
+
+## Embedded DSP Architecture
+
+The firmware DSP implementation is organised into independent C++ modules.
+
+The DSP modules are implemented independently so that they can be tested and integrated into the eventual audio-capture → RoI detection → extraction → filtering → storage/transmission pipeline.
+
+---
+
+## Embedded Audio Processing Parameters
+
+| Parameter               |                 Value |
+| ----------------------- | --------------------: |
+| Sample rate             |             16,000 Hz |
+| Frame duration          |                 25 ms |
+| Frame length            |           400 samples |
+| Hop duration            |                 10 ms |
+| Hop length              |           160 samples |
+| Energy smoothing window |             15 frames |
+| Smoothing duration      |                150 ms |
+| ROI threshold factor    |                   2.0 |
+| Minimum ROI duration    |                0.30 s |
+| ROI merge gap           |                0.50 s |
+| ROI boundary padding    |                0.25 s |
+| High-pass cutoff        |              1,000 Hz |
+| High-pass filter        | 4th-order Butterworth |
+
+These parameters are in `include/config.h`
+
+---
+
+## 1. Peak Normalisation
+
+A C++ implementation of peak normalisation was added in:
+
+```text
+src/dsp/normalize.cpp
+src/dsp/normalize.h
 ```
+
+The implementation:
+
+1. Finds the maximum absolute sample value.
+2. Uses this value as the peak amplitude.
+3. Divides every sample by the peak.
+4. Leaves a silent buffer unchanged.
+
+---
+
+## 2. Short-Time Energy
+
+Short-Time Energy was implemented in:
+
+```text
+src/dsp/energy.cpp
+src/dsp/energy.h
+```
+
+The implementation uses:
+
+```text
+Frame length = 400 samples
+Hop length   = 160 samples
+Sample rate  = 16 kHz
+```
+
+---
+
+## 3. Energy Smoothing
+
+A moving-average smoothing implementation was added in:
+
+```text
+src/dsp/smoothing.cpp
+src/dsp/smoothing.h
+```
+
+The configured window size is:
+
+```text
+15 energy frames
+```
+
+Since energy frames are generated every 10 ms, this becomes approximately:
+
+```text
+15 × 10 ms = 150 ms
+```
+
+of smoothing.
+
+---
+
+## 4. Adaptive ROI Threshold
+
+The adaptive ROI threshold was implemented in:
+
+```text
+src/dsp/roi_detector.cpp
+src/dsp/roi_detector.h
+```
+
+The threshold is calculated as:
+
+```math
+T = 2 \times median(E_{smoothed})
+```
+
+The implementation first copies the smoothed energy values into a scratch buffer, sorts them, calculates the median and multiplies the result by the configured threshold factor.
+
+---
+
+## 5. ROI Merging
+
+Adjacent candidate regions are merged when the gap between them is less than or equal to:
+
+```text
+0.50 seconds
+```
+
+This prevents a single bird vocalisation containing short low-energy gaps from being separated into multiple independent regions.
+
+---
+
+## 6. Minimum Duration Filtering and Boundary Padding
+
+Candidate regions shorter than:
+
+```text
+0.30 seconds
+```
+
+are discarded.
+
+The remaining regions are expanded by:
+
+```text
+0.25 seconds
+```
+
+on both sides where sufficient audio is available.
+
+The boundaries are clamped to the available audio duration.
+
+This preserves contextual audio around the detected vocalisation while avoiding invalid buffer boundaries.
+
+---
+
+## 7. ROI Extraction
+
+Exact ROI extraction was implemented in:
+
+```text
+src/dsp/segmenter.cpp
+src/dsp/segmenter.h
+```
+
+The implementation converts ROI start/end times into sample indices and copies only the detected region into an output buffer.
+
+A separate function calculates the number of samples required for an ROI before extraction, allowing the caller to determine whether the region fits within the available memory or transmission budget.
+
+The extraction stage therefore preserves the project's selected strategy of extracting the detected ROI rather than automatically replacing it with a fixed three-second window.
+
+---
+
+## 8. Embedded High-Pass Filtering
+
+The high-pass filtering stage was implemented in:
+
+```text
+src/dsp/highpass_filter.cpp
+src/dsp/highpass_filter.h
+include/highpass_coeffs.h
+```
+
+The filter configuration is:
+
+```text
+Type:        Butterworth high-pass
+Order:       4
+Cutoff:      1000 Hz
+Sample rate: 16000 Hz
+```
+
+---
+
+## 9. Firmware Configuration
+
+The DSP parameters are centralised in:
+
+```text
+include/config.h
+```
+
+This includes configuration for:
+
+* sample rate,
+* frame duration,
+* hop duration,
+* frame length,
+* hop length,
+* energy smoothing window,
+* ROI threshold factor,
+* minimum ROI duration,
+* ROI merge gap,
+* ROI padding,
+* high-pass cutoff,
+* high-pass filter order,
+* maximum capture duration,
+* maximum capture sample count.
+
+---
+
+## Current Embedded DSP Status
+
+
+* [x] ESP32-S3 PlatformIO firmware project
+* [x] Centralised DSP configuration
+* [x] Peak normalisation in C++
+* [x] Short-Time Energy in C++
+* [x] 25 ms / 10 ms frame configuration
+* [x] 15-frame moving-average smoothing
+* [x] Median-based adaptive ROI threshold
+* [x] Active-frame detection
+* [x] ROI region construction
+* [x] ROI merging
+* [x] Minimum ROI duration filtering
+* [x] Exact ROI sample extraction
+* [x] 4th-order Butterworth high-pass filter
+* [x] Precomputed SOS filter coefficients
+* [x] PSRAM-based DSP buffer allocation
+
+
+
+
 
