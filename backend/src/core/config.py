@@ -144,7 +144,7 @@ class Settings(BaseSettings):
     )
 
     birdnet_min_confidence: float = Field(
-        default=0.05,
+        default=0.25,
         ge=0.0,
         le=1.0,
     )

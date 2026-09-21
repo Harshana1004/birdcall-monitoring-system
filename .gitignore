@@ -40,6 +40,9 @@ evaluation/predictions
 
 storage/
 
+evaluation_ea/soundscape_data
+*.csv
+
 
 
 
