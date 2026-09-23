@@ -8,6 +8,21 @@
 
 constexpr uint32_t SAMPLE_RATE_HZ = 16000;
 
+// INMP441 I2S pins (ESP32-S3-DevKitC-1). Not strapping, USB-JTAG
+// (19/20), UART0 (43/44) or octal-PSRAM (35-37) pins.
+constexpr int I2S_MIC_SCK_PIN = 4;  // bit clock (BCLK)
+constexpr int I2S_MIC_WS_PIN  = 5;  // word select (LRCLK)
+constexpr int I2S_MIC_SD_PIN  = 6;  // serial data from mic
+
+// false: INMP441 L/R tied to GND (left slot). true: L/R tied to 3V3.
+// If the level meter shows only zeros, flip this first.
+constexpr bool I2S_MIC_CHANNEL_RIGHT = false;
+
+// One-pole DC-blocking high-pass applied to raw mic samples in the
+// capture layer (before the DSP pipeline), removing the INMP441's
+// DC offset and sub-audio drift. 0 disables it.
+constexpr float MIC_DC_BLOCK_CUTOFF_HZ = 20.0f;
+
 // ============================================================
 // Short-time energy / ROI detection
 // ============================================================
