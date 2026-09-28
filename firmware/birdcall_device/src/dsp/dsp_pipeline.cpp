@@ -25,7 +25,7 @@ PipelineResult process_capture(
   result.duration_seconds =
       static_cast<float>(audio_length) / SAMPLE_RATE_HZ;
 
-  normalize_audio_in_place(audio, audio_length);
+  result.input_peak = normalize_audio_in_place(audio, audio_length);
 
   const size_t frame_count = pipeline_frame_count(audio_length);
   result.frame_count = frame_count;

@@ -24,6 +24,26 @@ constexpr bool I2S_MIC_CHANNEL_RIGHT = false;
 constexpr float MIC_DC_BLOCK_CUTOFF_HZ = 20.0f;
 
 // ============================================================
+// Cellular modem (SIMCom A7670C, FS-MCore V1.2 board)
+// ============================================================
+
+// UART1 to the modem. ESP TX -> modem RX, ESP RX <- modem TX.
+constexpr int MODEM_TX_PIN = 17;
+constexpr int MODEM_RX_PIN = 18;
+constexpr uint32_t MODEM_BAUD = 115200;  // A7670 factory default
+
+// Backend reached over 4G (plain HTTP). Must be internet-reachable:
+// set this to the Oracle Cloud VM's public IP once it exists.
+constexpr const char* BACKEND_HOST = "0.0.0.0";
+constexpr uint16_t BACKEND_PORT = 8000;
+constexpr const char* BACKEND_UPLOAD_PATH = "/api/v1/recordings";
+
+// Plain-HTTP site used by the 'n' network check to prove the SIM's
+// data connection reaches the internet.
+constexpr const char* NETWORK_CHECK_HOST = "example.com";
+constexpr uint16_t NETWORK_CHECK_PORT = 80;
+
+// ============================================================
 // Short-time energy / ROI detection
 // ============================================================
 
@@ -60,3 +80,15 @@ constexpr uint32_t HIGHPASS_FILTER_ORDER = 4;
 
 constexpr uint32_t MAX_CAPTURE_SECONDS = 30;
 constexpr uint32_t MAX_CAPTURE_SAMPLES = MAX_CAPTURE_SECONDS * SAMPLE_RATE_HZ;
+
+// ============================================================
+// Upload (POST /api/v1/recordings)
+// ============================================================
+
+// Sent as edge_processing_version with every ROI. Bump whenever
+// the on-device processing changes in a way that affects output.
+constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.0.0";
+
+// UUID of this device's row in the backend's devices table
+// (POST /api/v1/devices returns it). Not secret.
+constexpr const char* DEVICE_ID = "ab76366d-fdb3-4225-972a-8edf737dac99";  // ESP32-DEV-01

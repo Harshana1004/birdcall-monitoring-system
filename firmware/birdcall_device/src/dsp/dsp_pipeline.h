@@ -55,6 +55,8 @@ struct PipelineResult {
   size_t frame_count;
   float energy_threshold;
   float duration_seconds;
+  // Peak absolute amplitude of the capture before normalization.
+  float input_peak;
   size_t detected_region_count;
   size_t roi_count;
 };

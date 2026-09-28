@@ -4,9 +4,9 @@
 
 namespace dsp {
 
-void normalize_audio_in_place(float* audio, size_t length) {
+float normalize_audio_in_place(float* audio, size_t length) {
   if (length == 0) {
-    return;
+    return 0.0f;
   }
 
   float peak = 0.0f;
@@ -19,12 +19,14 @@ void normalize_audio_in_place(float* audio, size_t length) {
   }
 
   if (peak == 0.0f) {
-    return;
+    return 0.0f;
   }
 
   for (size_t i = 0; i < length; ++i) {
     audio[i] /= peak;
   }
+
+  return peak;
 }
 
 }  // namespace dsp
