@@ -11,8 +11,11 @@ open once. Needs pyserial; PlatformIO's Python has it:
 
     ~/.platformio/penv/Scripts/python tools/serial_bridge.py --port COM4
 
-Then type u + Enter to record 10 s and upload its ROIs (or use
---upload to trigger one capture straight away). Ctrl+C to quit.
+In continuous mode (the default at boot, with UPLOAD_VIA_MODEM =
+false in config.h) the device uploads ROIs on its own as it detects
+them; just leave the bridge running. In bench mode (send b within 3 s
+of boot) type u + Enter to record 10 s and upload its ROIs, or use
+--upload to trigger one capture straight away. Ctrl+C to quit.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from __future__ import annotations
 import argparse
 import base64
 import queue
+import re
 import sys
 import threading
 import time
@@ -27,6 +31,10 @@ import urllib.error
 import urllib.request
 
 import serial
+
+# One line of an upload body: base64, 4-char groups, padding only at
+# the end (the device writes 76-char lines, the last may be shorter).
+BASE64_LINE = re.compile(r"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")
 
 
 def post_body(backend: str, boundary: str, body: bytes) -> tuple[int, str]:
@@ -111,11 +119,12 @@ def main() -> int:
                           f"{detail[:160]}")
                     port.write(f"UPLOAD_RESULT {status}\n".encode())
                     upload = None
+                elif BASE64_LINE.fullmatch(line):
+                    upload["chunks"].append(base64.b64decode(line))
                 else:
-                    try:
-                        upload["chunks"].append(base64.b64decode(line, validate=True))
-                    except ValueError:
-                        print(f"bridge: bad base64 line in roi {upload['seq']}: {line[:40]!r}")
+                    # In continuous mode other tasks may log between the
+                    # body's lines (always as whole lines).
+                    print(f"device: {line}")
                 continue
 
             if line.startswith("UPLOAD_BEGIN "):

@@ -5,6 +5,8 @@
 
 #include <esp_random.h>
 
+#include "app/monitor.h"
+#include "app/uplink.h"
 #include "audio/audio_capture.h"
 #include "bridge/serial_bridge.h"
 #include "config.h"
@@ -12,18 +14,22 @@
 #include "upload/edge_metadata.h"
 #include "upload/roi_upload.h"
 #include "upload/uuid.h"
-#include "modem/a7670.h"
+#include "upload/wav_writer.h"
 #include "util/clock.h"
 
 // ============================================================
-// Firmware status: bench prototype (capture, DSP, upload via bridge).
+// BirdCall edge firmware
 // ============================================================
 //
-// loop() prints a live mic level meter every 100 ms, for checking
-// the wiring. Pressing the BOOT button records kTestCaptureSeconds
-// of real audio into PSRAM and runs the full DSP pipeline over it.
+// At boot the device waits kModeSelectMs for a 'b' on the USB serial
+// port. Without one it starts continuous monitoring (app/monitor.h):
+// capture, ROI detection and background upload, over 4G or the serial
+// bridge (UPLOAD_VIA_MODEM in config.h), with a status line every
+// kStatusIntervalMs.
 //
-// Serial commands:
+// With 'b' it enters bench mode instead: a live mic level meter every
+// 100 ms, BOOT button = record kTestCaptureSeconds and run the DSP
+// pipeline, plus these serial commands:
 //   'd'  same capture, but first quantizes it to PCM16 and streams it
 //        as base64 so tools/capture_wav.py can save it as a WAV (the
 //        pipeline then runs on exactly the dumped samples)
@@ -39,16 +45,19 @@
 
 namespace {
 
+constexpr uint32_t kModeSelectMs = 3000;
+constexpr uint32_t kStatusIntervalMs = 60000;
+
 constexpr int kBootButtonPin = 0;  // BOOT button, active low
 constexpr uint32_t kTestCaptureSeconds = 10;
 constexpr size_t kTestCaptureSamples = kTestCaptureSeconds * SAMPLE_RATE_HZ;
 constexpr size_t kMeterBlockSamples = SAMPLE_RATE_HZ / 10;  // 100 ms
 constexpr size_t kMaxRegions = 64;
 
-float meter_block[kMeterBlockSamples];
+bool g_bench_mode = false;
+uint32_t g_last_status_ms = 0;
 
-// Logs every AT exchange to the USB serial port.
-modem::A7670 modem_link(Serial1, &Serial);
+float meter_block[kMeterBlockSamples];
 
 float* capture = nullptr;
 float* energy = nullptr;
@@ -62,6 +71,11 @@ template <typename T>
 T* psram_alloc(size_t count) {
   return static_cast<T*>(
       heap_caps_malloc(count * sizeof(T), MALLOC_CAP_SPIRAM));
+}
+
+[[noreturn]] void halt(const char* message) {
+  Serial.printf("%s\r\n", message);
+  while (true) delay(1000);
 }
 
 float to_dbfs(float linear) {
@@ -140,59 +154,26 @@ void new_uuid(char* out) {
   upload::format_uuid_v4(bytes, out);
 }
 
-enum class Transport { kSerialBridge, kModem };
-
-// Brings the A7670 up to a usable data connection and, if the clock
-// is not set yet, sets it from NTP. Safe to call repeatedly.
-bool ensure_modem_ready() {
-  if (!modem_link.probe(10000)) {
-    Serial.println("modem: no answer to AT -- check wiring and power");
-    return false;
-  }
-  if (!modem_link.wait_for_network(60000)) {
-    Serial.println("modem: not registered on the network");
-    return false;
-  }
-  if (!modem_link.open_data()) {
-    Serial.println("modem: could not open the data connection");
-    return false;
-  }
-  if (!util::clock_is_set()) {
-    int64_t unix_ms = 0;
-    if (!modem_link.sync_time(&unix_ms)) {
-      Serial.println("modem: NTP time sync failed");
-      return false;
-    }
-    util::set_clock_unix_ms(unix_ms);
-    char iso[upload::kIso8601Length + 1];
-    upload::format_iso8601_utc(unix_ms, iso);
-    Serial.printf("modem: clock set to %s\n", iso);
-  }
-  return true;
-}
-
 // 'n': checks modem, registration, data, NTP and a plain-HTTP GET.
 void run_network_check() {
   Serial.println("\nNetwork check (modem log follows)...");
-  if (!ensure_modem_ready()) {
+  if (!app::uplink_prepare(app::Transport::kModem)) {
     Serial.println("Network check FAILED.\n");
     return;
   }
-  const int status = modem_link.http_get(NETWORK_CHECK_HOST,
-                                         NETWORK_CHECK_PORT, "/");
+  const int status = app::modem_link().http_get(NETWORK_CHECK_HOST,
+                                                NETWORK_CHECK_PORT, "/");
   Serial.printf("GET http://%s/ -> %d\n", NETWORK_CHECK_HOST, status);
   Serial.println(status == 200 ? "Network check OK.\n"
                                : "Network check FAILED at the HTTP step.\n");
 }
 
-// Uploads every ROI of one processed capture, through the serial
-// bridge or the A7670. Each ROI keeps its client_upload_id across
-// retries, so a retry after a lost response is recognised by the
-// backend (200).
+// Uploads every ROI of one bench capture. Each ROI keeps its
+// client_upload_id across retries, so a retry after a lost response
+// is recognised by the backend (200).
 void upload_rois(const dsp::PipelineResult& result, int64_t started_unix_ms,
-                 Transport transport) {
+                 app::Transport transport) {
   constexpr int kMaxAttempts = 3;
-  constexpr uint32_t kResponseTimeoutMs = 30000;
 
   char metadata[1024];
   if (upload::format_edge_metadata(metadata, sizeof(metadata), result) == 0) {
@@ -222,20 +203,12 @@ void upload_rois(const dsp::PipelineResult& result, int64_t started_unix_ms,
         rois[i].region.end_time_seconds,
         EDGE_PROCESSING_VERSION,
         metadata};
+    const upload::RoiAudio audio{rois[i].audio, nullptr,
+                                 rois[i].sample_count, SAMPLE_RATE_HZ};
 
-    int status = 0;
     for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
       const uint32_t attempt_started = millis();
-      if (transport == Transport::kSerialBridge) {
-        status = bridge::send_upload(fields, rois[i].audio,
-                                     rois[i].sample_count, SAMPLE_RATE_HZ,
-                                     kResponseTimeoutMs);
-      } else {
-        status = modem_link.post_roi(BACKEND_HOST, BACKEND_PORT,
-                                     BACKEND_UPLOAD_PATH, fields,
-                                     rois[i].audio, rois[i].sample_count,
-                                     SAMPLE_RATE_HZ);
-      }
+      const int status = app::uplink_send(transport, fields, audio);
       Serial.printf("upload: roi %u attempt %d -> %d (%.1f s)\n",
                     static_cast<unsigned>(i), attempt, status,
                     (millis() - attempt_started) / 1000.0f);
@@ -247,8 +220,8 @@ void upload_rois(const dsp::PipelineResult& result, int64_t started_unix_ms,
         break;
       }
       // A transport failure may have left the data connection down.
-      if (transport == Transport::kModem && status < 0) {
-        ensure_modem_ready();
+      if (!app::uplink_prepare(transport)) {
+        break;
       }
     }
   }
@@ -322,14 +295,15 @@ void run_raw_bit_check() {
 enum class CaptureMode { kPrintOnly, kDumpWav, kUploadBridge, kUploadModem };
 
 void run_test_capture(CaptureMode mode) {
-  if (mode == CaptureMode::kUploadBridge && !util::clock_is_set() &&
-      !bridge::request_time(3000)) {
+  // Make sure the transport and clock are ready before recording, so
+  // the capture timestamp is real and the upload can start at once.
+  if (mode == CaptureMode::kUploadBridge &&
+      !app::uplink_prepare(app::Transport::kSerialBridge)) {
     Serial.println("upload: clock not set -- run tools/serial_bridge.py");
     return;
   }
-  // Bring the modem up before recording, so the capture timestamp
-  // comes from NTP and the upload can start straight away.
-  if (mode == CaptureMode::kUploadModem && !ensure_modem_ready()) {
+  if (mode == CaptureMode::kUploadModem &&
+      !app::uplink_prepare(app::Transport::kModem)) {
     Serial.println("upload: modem not ready\n");
     return;
   }
@@ -373,9 +347,9 @@ void run_test_capture(CaptureMode mode) {
   }
 
   if (mode == CaptureMode::kUploadBridge) {
-    upload_rois(result, started_unix_ms, Transport::kSerialBridge);
+    upload_rois(result, started_unix_ms, app::Transport::kSerialBridge);
   } else if (mode == CaptureMode::kUploadModem) {
-    upload_rois(result, started_unix_ms, Transport::kModem);
+    upload_rois(result, started_unix_ms, app::Transport::kModem);
   }
   Serial.println("Back to level meter.\n");
 }
@@ -423,18 +397,32 @@ void run_modem_passthrough() {
   }
 }
 
-}  // namespace
+// Waits up to kModeSelectMs for 'b' (bench mode). A "t<unix_ms>" line
+// from the serial bridge arriving meanwhile sets the clock.
+bool wait_for_bench_request() {
+  Serial.printf("Starting continuous monitoring in %u s -- send 'b' for "
+                "bench mode.\r\n",
+                static_cast<unsigned>(kModeSelectMs / 1000));
 
-void setup() {
-  Serial.begin(115200);
-  delay(1000);
+  const uint32_t started = millis();
+  while (millis() - started < kModeSelectMs) {
+    if (Serial.available() > 0) {
+      const int c = Serial.read();
+      if (c == 'b') {
+        return true;
+      }
+      if (c == 't') {
+        char line[32] = "t";
+        bridge::read_line(line + 1, sizeof(line) - 1, 500);
+        bridge::apply_time_command(line);
+      }
+    }
+    delay(10);
+  }
+  return false;
+}
 
-  Serial.println("BirdCall edge firmware -- INMP441 bring-up");
-  Serial.printf("PSRAM: %u bytes free\n",
-                static_cast<unsigned>(ESP.getFreePsram()));
-
-  pinMode(kBootButtonPin, INPUT_PULLUP);
-
+void setup_bench_mode() {
   frame_capacity = dsp::pipeline_frame_count(kTestCaptureSamples);
   capture = psram_alloc<float>(kTestCaptureSamples);
   energy = psram_alloc<float>(frame_capacity);
@@ -443,24 +431,19 @@ void setup() {
   regions = psram_alloc<dsp::RegionOfInterest>(kMaxRegions);
 
   if (!capture || !energy || !smoothed || !arena || !regions) {
-    Serial.println("PSRAM allocation failed");
-    while (true) delay(1000);
+    halt("PSRAM allocation failed");
   }
-
-  Serial1.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
-
   if (!audio::begin()) {
-    Serial.println("I2S driver install failed");
-    while (true) delay(1000);
+    halt("I2S driver install failed");
   }
 
-  Serial.println("Mic running. Press BOOT for a test capture; send 'd' "
-                 "(dump WAV), 'u' (upload via bridge), 'g' (upload via 4G), "
-                 "'n' (4G network check), 'r' (raw bits) or 'm' (modem AT "
-                 "passthrough).\n");
+  Serial.println("Bench mode. Mic running. Press BOOT for a test capture; "
+                 "send 'd' (dump WAV), 'u' (upload via bridge), 'g' (upload "
+                 "via 4G), 'n' (4G network check), 'r' (raw bits) or 'm' "
+                 "(modem AT passthrough).\n");
 }
 
-void loop() {
+void bench_loop() {
   if (Serial.available() > 0) {
     const int command = Serial.read();
     if (command == 'd') {
@@ -505,4 +488,69 @@ void loop() {
 
   audio::read(meter_block, kMeterBlockSamples);
   print_meter(measure(meter_block, kMeterBlockSamples));
+}
+
+void print_monitor_status() {
+  const app::MonitorStats s = app::monitor_stats();
+  Serial.printf(
+      "status: windows %u (lost %u), sessions %u, ROIs %u detected / %u "
+      "queued / %u dropped (queue full), uploads %u ok / %u rejected / %u "
+      "failed attempts, queue %u ROIs %.1f KB, PSRAM free %u\r\n",
+      static_cast<unsigned>(s.windows_captured),
+      static_cast<unsigned>(s.windows_lost),
+      static_cast<unsigned>(s.sessions_started),
+      static_cast<unsigned>(s.rois_detected),
+      static_cast<unsigned>(s.rois_queued),
+      static_cast<unsigned>(s.rois_dropped_full),
+      static_cast<unsigned>(s.uploads_ok),
+      static_cast<unsigned>(s.uploads_rejected),
+      static_cast<unsigned>(s.upload_failures),
+      static_cast<unsigned>(s.queue_depth), s.queue_used_bytes / 1024.0,
+      static_cast<unsigned>(ESP.getFreePsram()));
+}
+
+}  // namespace
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.println("BirdCall edge firmware");
+  Serial.printf("PSRAM: %u bytes free\n",
+                static_cast<unsigned>(ESP.getFreePsram()));
+
+  pinMode(kBootButtonPin, INPUT_PULLUP);
+  Serial1.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+
+  g_bench_mode = wait_for_bench_request();
+  if (g_bench_mode) {
+    setup_bench_mode();
+    return;
+  }
+
+  const app::Transport transport = UPLOAD_VIA_MODEM
+                                       ? app::Transport::kModem
+                                       : app::Transport::kSerialBridge;
+  if (!app::start_monitor(transport)) {
+    halt("Continuous monitoring could not start.");
+  }
+  Serial.printf("Continuous monitoring started: %u s windows, uploads via "
+                "%s.\r\n",
+                static_cast<unsigned>(CAPTURE_WINDOW_SECONDS),
+                UPLOAD_VIA_MODEM ? "4G modem" : "serial bridge");
+  g_last_status_ms = millis();
+}
+
+void loop() {
+  if (g_bench_mode) {
+    bench_loop();
+    return;
+  }
+
+  // Continuous mode: the work happens in the monitor's tasks.
+  if (millis() - g_last_status_ms >= kStatusIntervalMs) {
+    g_last_status_ms = millis();
+    print_monitor_status();
+  }
+  delay(100);
 }

@@ -39,6 +39,14 @@ void format_boundary(const RoiUploadFields& fields, char* out) {
 void write_roi_upload_body(const RoiUploadFields& fields, const float* audio,
                            size_t sample_count, uint32_t sample_rate,
                            ByteSink& sink) {
+  write_roi_upload_body(fields, RoiAudio{audio, nullptr, sample_count,
+                                         sample_rate},
+                        sink);
+}
+
+void write_roi_upload_body(const RoiUploadFields& fields,
+                           const RoiAudio& audio, ByteSink& sink) {
+  const size_t sample_count = audio.sample_count;
   char boundary[kBoundaryMaxLength + 1];
   format_boundary(fields, boundary);
 
@@ -74,7 +82,8 @@ void write_roi_upload_body(const RoiUploadFields& fields, const float* audio,
   write_str(sink, ".wav\"\r\nContent-Type: audio/wav\r\n\r\n");
 
   uint8_t header[kWavHeaderBytes];
-  write_wav_header(header, static_cast<uint32_t>(sample_count), sample_rate);
+  write_wav_header(header, static_cast<uint32_t>(sample_count),
+                   audio.sample_rate);
   sink.write(header, sizeof(header));
 
   // Encode in small chunks so no full-size PCM buffer is needed.
@@ -84,7 +93,15 @@ void write_roi_upload_body(const RoiUploadFields& fields, const float* audio,
     const size_t n = sample_count - done < kChunkSamples
                          ? sample_count - done
                          : kChunkSamples;
-    encode_pcm16(audio + done, n, pcm);
+    if (audio.pcm16 != nullptr) {
+      for (size_t i = 0; i < n; ++i) {
+        const uint16_t v = static_cast<uint16_t>(audio.pcm16[done + i]);
+        pcm[2 * i] = static_cast<uint8_t>(v & 0xFF);
+        pcm[2 * i + 1] = static_cast<uint8_t>(v >> 8);
+      }
+    } else {
+      encode_pcm16(audio.samples + done, n, pcm);
+    }
     sink.write(pcm, n * 2);
   }
 

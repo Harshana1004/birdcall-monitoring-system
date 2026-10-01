@@ -21,6 +21,7 @@
 #include "upload/edge_metadata.h"
 #include "upload/roi_upload.h"
 #include "upload/uuid.h"
+#include "upload/wav_writer.h"
 
 namespace {
 
@@ -29,6 +30,14 @@ class StdoutSink : public upload::ByteSink {
   void write(const uint8_t* data, size_t length) override {
     std::fwrite(data, 1, length, stdout);
   }
+};
+
+class VectorSink : public upload::ByteSink {
+ public:
+  void write(const uint8_t* data, size_t length) override {
+    bytes.insert(bytes.end(), data, data + length);
+  }
+  std::vector<uint8_t> bytes;
 };
 
 // Deterministic bytes so test output is reproducible.
@@ -109,6 +118,27 @@ int main(int argc, char** argv) {
 
     char boundary[upload::kBoundaryMaxLength + 1];
     upload::format_boundary(fields, boundary);
+
+    // The continuous-mode queue stores ROIs as PCM16 (to_pcm16) and
+    // uploads from that; it must yield exactly the same bytes.
+    std::vector<int16_t> pcm(roi.sample_count);
+    for (size_t k = 0; k < roi.sample_count; ++k) {
+      pcm[k] = upload::to_pcm16(roi.audio[k]);
+    }
+    VectorSink from_float, from_pcm16;
+    upload::write_roi_upload_body(
+        fields, upload::RoiAudio{roi.audio, nullptr, roi.sample_count,
+                                 SAMPLE_RATE_HZ},
+        from_float);
+    upload::write_roi_upload_body(
+        fields, upload::RoiAudio{nullptr, pcm.data(), roi.sample_count,
+                                 SAMPLE_RATE_HZ},
+        from_pcm16);
+    if (from_float.bytes != from_pcm16.bytes) {
+      std::fprintf(stderr, "roi %zu: PCM16 path differs from float path\n",
+                   i);
+      return 3;
+    }
 
     std::printf("BODY %s %zu\n", boundary, counter.total);
     StdoutSink sink;

@@ -32,9 +32,9 @@ constexpr int MODEM_TX_PIN = 17;
 constexpr int MODEM_RX_PIN = 18;
 constexpr uint32_t MODEM_BAUD = 115200;  // A7670 factory default
 
-// Backend reached over 4G (plain HTTP). Must be internet-reachable:
-// set this to the Oracle Cloud VM's public IP once it exists.
-constexpr const char* BACKEND_HOST = "0.0.0.0";
+// Backend reached over 4G (plain HTTP): the Azure VM "birdcall-server"
+// (static public IP; deployed with deploy/setup_server.sh).
+constexpr const char* BACKEND_HOST = "70.153.140.247";
 constexpr uint16_t BACKEND_PORT = 8000;
 constexpr const char* BACKEND_UPLOAD_PATH = "/api/v1/recordings";
 
@@ -82,6 +82,36 @@ constexpr uint32_t MAX_CAPTURE_SECONDS = 30;
 constexpr uint32_t MAX_CAPTURE_SAMPLES = MAX_CAPTURE_SECONDS * SAMPLE_RATE_HZ;
 
 // ============================================================
+// Continuous monitoring (app/monitor.cpp)
+// ============================================================
+
+// Audio is processed in back-to-back windows of this length; the
+// DSP threshold adapts per window. A call crossing a window edge is
+// detected as two ROIs (one per window).
+constexpr uint32_t CAPTURE_WINDOW_SECONDS = 10;
+
+// A capture session (capture_session_id) is one stretch of
+// gap-free audio; a new one starts after this long, or after any
+// lost audio, keeping ROI times small and meaningful.
+constexpr uint32_t SESSION_MAX_SECONDS = 3600;
+
+// Upload queue in PSRAM: ROI audio waiting for the network, as PCM16.
+// 4 MB = ~131 s of ROI audio; ROIs that do not fit are dropped and
+// counted.
+constexpr size_t UPLOAD_QUEUE_POOL_BYTES = 4 * 1024 * 1024;
+constexpr size_t UPLOAD_QUEUE_MAX_ENTRIES = 256;
+
+// Retry back-off for uploads that fail on the network side.
+constexpr uint32_t UPLOAD_RETRY_INITIAL_MS = 5000;
+constexpr uint32_t UPLOAD_RETRY_MAX_MS = 120000;
+
+// true: upload over 4G via the A7670 to BACKEND_HOST (field).
+// false: via the USB serial bridge, tools/serial_bridge.py (bench;
+// the bridge must then post to a backend that knows DEVICE_ID, e.g.
+// --backend http://70.153.140.247:8000).
+constexpr bool UPLOAD_VIA_MODEM = true;
+
+// ============================================================
 // Upload (POST /api/v1/recordings)
 // ============================================================
 
@@ -90,5 +120,7 @@ constexpr uint32_t MAX_CAPTURE_SAMPLES = MAX_CAPTURE_SECONDS * SAMPLE_RATE_HZ;
 constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.0.0";
 
 // UUID of this device's row in the backend's devices table
-// (POST /api/v1/devices returns it). Not secret.
-constexpr const char* DEVICE_ID = "ab76366d-fdb3-4225-972a-8edf737dac99";  // ESP32-DEV-01
+// (POST /api/v1/devices returns it). Not secret. This is ESP32-DEV-01
+// on the Azure backend; the laptop backend's row has a different id
+// (ab76366d-fdb3-4225-972a-8edf737dac99).
+constexpr const char* DEVICE_ID = "a7e554f5-a5af-4471-8f76-3b4ebd945395";  // ESP32-DEV-01

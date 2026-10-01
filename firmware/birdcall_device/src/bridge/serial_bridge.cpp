@@ -32,7 +32,7 @@ void Base64SerialSink::finish() {
 }
 
 void Base64SerialSink::flush_line() {
-  char line[77];
+  char line[79];
   size_t out = 0;
   for (size_t i = 0; i < filled_; i += 3) {
     const uint32_t b0 = pending_[i];
@@ -44,8 +44,12 @@ void Base64SerialSink::flush_line() {
     line[out++] = i + 1 < filled_ ? kAlphabet[(v >> 6) & 63] : '=';
     line[out++] = i + 2 < filled_ ? kAlphabet[v & 63] : '=';
   }
-  line[out] = '\0';
-  Serial.println(line);
+  // One write per line (text + CRLF): HardwareSerial locks per write,
+  // so log lines printed by other tasks can only land between whole
+  // lines, never inside one.
+  line[out++] = '\r';
+  line[out++] = '\n';
+  Serial.write(reinterpret_cast<const uint8_t*>(line), out);
   filled_ = 0;
 }
 
@@ -90,7 +94,7 @@ bool apply_time_command(const char* line) {
 }
 
 bool request_time(uint32_t timeout_ms) {
-  Serial.println("TIME_REQUEST");
+  Serial.print("TIME_REQUEST\r\n");
 
   const uint32_t started = millis();
   char line[40];
@@ -103,12 +107,10 @@ bool request_time(uint32_t timeout_ms) {
   return false;
 }
 
-int send_upload(const upload::RoiUploadFields& fields, const float* audio,
-                size_t sample_count, uint32_t sample_rate,
-                uint32_t response_timeout_ms) {
+int send_upload(const upload::RoiUploadFields& fields,
+                const upload::RoiAudio& audio, uint32_t response_timeout_ms) {
   upload::CountingSink counter;
-  upload::write_roi_upload_body(fields, audio, sample_count, sample_rate,
-                                counter);
+  upload::write_roi_upload_body(fields, audio, counter);
 
   char boundary[upload::kBoundaryMaxLength + 1];
   upload::format_boundary(fields, boundary);
@@ -123,10 +125,9 @@ int send_upload(const upload::RoiUploadFields& fields, const float* audio,
                 static_cast<unsigned>(fields.snippet_sequence), boundary,
                 static_cast<unsigned>(counter.total));
   Base64SerialSink sink;
-  upload::write_roi_upload_body(fields, audio, sample_count, sample_rate,
-                                sink);
+  upload::write_roi_upload_body(fields, audio, sink);
   sink.finish();
-  Serial.println("UPLOAD_END");
+  Serial.print("UPLOAD_END\r\n");
 
   const uint32_t started = millis();
   char line[64];

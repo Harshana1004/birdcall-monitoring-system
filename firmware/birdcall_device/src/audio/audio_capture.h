@@ -20,6 +20,11 @@ bool begin();
 // a driver error).
 size_t read(float* out, size_t count);
 
+// Number of DMA overruns (audio overwritten before it was read)
+// since begin(). A change between two reads means the samples are
+// not contiguous across that point.
+uint32_t overflow_count();
+
 // Diagnostics: reads unconverted 32-bit I2S slots (no shift, no DC
 // blocker). Blocks until `count` slots have been read.
 size_t read_raw_slots(int32_t* out, size_t count);

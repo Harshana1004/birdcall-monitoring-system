@@ -47,8 +47,8 @@ class A7670 {
   // streaming the body. Returns the HTTP status code (201 created,
   // 200 duplicate retry), or a negative value on transport failure.
   int post_roi(const char* host, uint16_t port, const char* path,
-               const upload::RoiUploadFields& fields, const float* audio,
-               size_t sample_count, uint32_t sample_rate);
+               const upload::RoiUploadFields& fields,
+               const upload::RoiAudio& audio);
 
   // Bytes of socket data (headers + body) sent by the last request.
   size_t last_bytes_sent() const { return bytes_sent_; }

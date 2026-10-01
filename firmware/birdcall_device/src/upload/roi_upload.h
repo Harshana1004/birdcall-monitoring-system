@@ -42,10 +42,25 @@ struct RoiUploadFields {
 constexpr size_t kBoundaryMaxLength = 70;
 void format_boundary(const RoiUploadFields& fields, char* out);
 
+// ROI audio as either float samples in [-1, 1] (encoded to PCM16 on
+// the fly with encode_pcm16) or ready-made PCM16. Set exactly one of
+// `samples` / `pcm16`. Both give identical bytes for the same audio
+// when pcm16 was produced by encode_pcm16.
+struct RoiAudio {
+  const float* samples;
+  const int16_t* pcm16;
+  size_t sample_count;
+  uint32_t sample_rate;
+};
+
 // Writes the complete multipart/form-data body -- all form fields
-// plus `audio` as a mono PCM16 WAV named "<client_upload_id>.wav".
+// plus the audio as a mono PCM16 WAV named "<client_upload_id>.wav".
 // Call once with a CountingSink to get Content-Length, then again
 // with the real sink; the output is identical both times.
+void write_roi_upload_body(const RoiUploadFields& fields,
+                           const RoiAudio& audio, ByteSink& sink);
+
+// Float-sample convenience overload.
 void write_roi_upload_body(const RoiUploadFields& fields, const float* audio,
                            size_t sample_count, uint32_t sample_rate,
                            ByteSink& sink);

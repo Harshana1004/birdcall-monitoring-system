@@ -50,8 +50,7 @@ bool request_time(uint32_t timeout_ms);
 // Sends one ROI upload through the bridge and waits for the backend's
 // HTTP status. Returns the status (201 created, 200 duplicate retry),
 // or 0 if the bridge did not answer in time.
-int send_upload(const upload::RoiUploadFields& fields, const float* audio,
-                size_t sample_count, uint32_t sample_rate,
-                uint32_t response_timeout_ms);
+int send_upload(const upload::RoiUploadFields& fields,
+                const upload::RoiAudio& audio, uint32_t response_timeout_ms);
 
 }  // namespace bridge

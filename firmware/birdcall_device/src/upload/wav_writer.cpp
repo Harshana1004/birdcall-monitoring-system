@@ -44,13 +44,16 @@ void write_wav_header(uint8_t out[kWavHeaderBytes], uint32_t sample_count,
   put_u32(out + 40, data_bytes);
 }
 
+int16_t to_pcm16(float sample) {
+  float scaled = std::nearbyint(sample * 32768.0f);
+  scaled = scaled > 32767.0f ? 32767.0f : scaled;
+  scaled = scaled < -32768.0f ? -32768.0f : scaled;
+  return static_cast<int16_t>(scaled);
+}
+
 void encode_pcm16(const float* samples, size_t count, uint8_t* out) {
   for (size_t i = 0; i < count; ++i) {
-    float scaled = std::nearbyint(samples[i] * 32768.0f);
-    scaled = scaled > 32767.0f ? 32767.0f : scaled;
-    scaled = scaled < -32768.0f ? -32768.0f : scaled;
-    const int16_t q = static_cast<int16_t>(scaled);
-    put_u16(out + 2 * i, static_cast<uint16_t>(q));
+    put_u16(out + 2 * i, static_cast<uint16_t>(to_pcm16(samples[i])));
   }
 }
 

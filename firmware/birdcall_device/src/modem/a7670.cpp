@@ -514,11 +514,10 @@ int A7670::http_get(const char* host, uint16_t port, const char* path) {
 }
 
 int A7670::post_roi(const char* host, uint16_t port, const char* path,
-                    const upload::RoiUploadFields& fields, const float* audio,
-                    size_t sample_count, uint32_t sample_rate) {
+                    const upload::RoiUploadFields& fields,
+                    const upload::RoiAudio& audio) {
   upload::CountingSink counter;
-  upload::write_roi_upload_body(fields, audio, sample_count, sample_rate,
-                                counter);
+  upload::write_roi_upload_body(fields, audio, counter);
 
   char boundary[upload::kBoundaryMaxLength + 1];
   upload::format_boundary(fields, boundary);
@@ -537,8 +536,7 @@ int A7670::post_roi(const char* host, uint16_t port, const char* path,
                         counter.total)) {
     log_ = nullptr;
     ModemSink sink(*this);
-    upload::write_roi_upload_body(fields, audio, sample_count, sample_rate,
-                                  sink);
+    upload::write_roi_upload_body(fields, audio, sink);
     const bool sent = sink.finish();
     log_ = saved_log;
     if (sent) {

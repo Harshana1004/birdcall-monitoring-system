@@ -12,9 +12,28 @@ namespace {
 
 constexpr i2s_port_t kPort = I2S_NUM_0;
 
-// DMA: 8 x 256 frames = 128 ms of buffering at 16 kHz.
-constexpr int kDmaBufferCount = 8;
+// DMA: 16 x 256 frames = 256 ms of buffering at 16 kHz, so a reader
+// briefly delayed by another task does not lose audio.
+constexpr int kDmaBufferCount = 16;
 constexpr int kDmaBufferFrames = 256;
+
+// Driver events; I2S_EVENT_RX_Q_OVF means DMA overwrote audio that
+// had not been read yet (a gap in the stream).
+constexpr int kEventQueueLength = 32;
+QueueHandle_t event_queue = nullptr;
+uint32_t overflows = 0;
+
+void drain_events() {
+  if (event_queue == nullptr) {
+    return;
+  }
+  i2s_event_t event;
+  while (xQueueReceive(event_queue, &event, 0) == pdTRUE) {
+    if (event.type == I2S_EVENT_RX_Q_OVF) {
+      ++overflows;
+    }
+  }
+}
 
 // Datasheet: INMP441 output is valid ~85 ms after the clock
 // starts; discard a bit more to be safe.
@@ -89,7 +108,8 @@ bool begin() {
       .data_in_num = I2S_MIC_SD_PIN,
   };
 
-  if (i2s_driver_install(kPort, &config, 0, nullptr) != ESP_OK) {
+  if (i2s_driver_install(kPort, &config, kEventQueueLength, &event_queue) !=
+      ESP_OK) {
     return false;
   }
 
@@ -125,7 +145,14 @@ bool begin() {
     }
   }
 
+  drain_events();
+  overflows = 0;  // startup reads are not part of any capture
   return true;
+}
+
+uint32_t overflow_count() {
+  drain_events();
+  return overflows;
 }
 
 size_t read(float* out, size_t count) {
@@ -146,6 +173,7 @@ size_t read(float* out, size_t count) {
     written += got;
   }
 
+  drain_events();
   return written;
 }
 
