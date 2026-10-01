@@ -2,10 +2,18 @@
 
 #include <Arduino.h>
 
+#include <cstring>
+
 #include "bridge/serial_bridge.h"
 #include "config.h"
 #include "upload/edge_metadata.h"
 #include "util/clock.h"
+
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#error "include/secrets.h is missing: copy include/secrets.example.h to include/secrets.h and set DEVICE_API_KEY"
+#endif
 
 namespace app {
 
@@ -56,6 +64,10 @@ modem::A7670& modem_link() {
 
 bool uplink_prepare(Transport transport) {
   if (transport == Transport::kModem) {
+    if (std::strncmp(DEVICE_API_KEY, "REPLACE_", 8) == 0) {
+      Serial.print("upload: DEVICE_API_KEY in include/secrets.h is still "
+                   "the placeholder -- the server will reject uploads\r\n");
+    }
     return prepare_modem();
   }
   return util::clock_is_set() || bridge::request_time(3000);
@@ -66,10 +78,15 @@ int uplink_send(Transport transport, const upload::RoiUploadFields& fields,
   if (transport == Transport::kSerialBridge) {
     return bridge::send_upload(fields, audio, kBridgeResponseTimeoutMs);
   }
-  const int status = g_modem.post_roi(BACKEND_HOST, BACKEND_PORT,
-                                      BACKEND_UPLOAD_PATH, fields, audio);
+  const int status =
+      g_modem.post_roi(BACKEND_HOST, BACKEND_PORT, BACKEND_UPLOAD_PATH,
+                       DEVICE_API_KEY, fields, audio);
   if (status < 0) {
     g_modem_ready = false;  // re-check registration/data next time
+  }
+  if (status == 401) {
+    Serial.print("upload: 401 -- DEVICE_API_KEY in include/secrets.h does "
+                 "not match the server's\r\n");
   }
   return status;
 }

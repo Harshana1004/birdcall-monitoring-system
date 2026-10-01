@@ -86,6 +86,7 @@ def main() -> int:
     parser.add_argument("wav", type=Path)
     parser.add_argument("--post", metavar="URL", help="e.g. http://localhost:8000")
     parser.add_argument("--device-id", default=PLACEHOLDER_DEVICE)
+    parser.add_argument("--device-key", help="X-Device-Key for --post")
     args = parser.parse_args()
 
     audio, sr = sf.read(args.wav, dtype="float32")
@@ -202,7 +203,10 @@ def main() -> int:
                 args.post.rstrip("/") + "/api/v1/recordings",
                 data=body,
                 method="POST",
-                headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+                headers={
+                    "Content-Type": f"multipart/form-data; boundary={boundary}",
+                    **({"X-Device-Key": args.device_key} if args.device_key else {}),
+                },
             )
             try:
                 with urllib.request.urlopen(request) as response:

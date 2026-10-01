@@ -29,6 +29,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import serial
 
@@ -37,12 +38,31 @@ import serial
 BASE64_LINE = re.compile(r"(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")
 
 
-def post_body(backend: str, boundary: str, body: bytes) -> tuple[int, str]:
+SECRETS_H = Path(__file__).resolve().parents[1] / "include" / "secrets.h"
+
+
+def key_from_secrets_h() -> str | None:
+    """DEVICE_API_KEY from the firmware's include/secrets.h, if set."""
+    try:
+        text = SECRETS_H.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r'DEVICE_API_KEY\s*=\s*"([^"]*)"', text)
+    if match is None or match.group(1).startswith("REPLACE_"):
+        return None
+    return match.group(1)
+
+
+def post_body(backend: str, boundary: str, body: bytes,
+              device_key: str | None) -> tuple[int, str]:
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    if device_key:
+        headers["X-Device-Key"] = device_key
     request = urllib.request.Request(
         backend.rstrip("/") + "/api/v1/recordings",
         data=body,
         method="POST",
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -71,7 +91,11 @@ def main() -> int:
                         help="trigger one capture + upload on connect")
     parser.add_argument("--meter", action="store_true",
                         help="also print the level-meter lines")
+    parser.add_argument("--device-key",
+                        help="X-Device-Key to send (default: DEVICE_API_KEY "
+                             "from include/secrets.h)")
     args = parser.parse_args()
+    device_key = args.device_key or key_from_secrets_h()
 
     port = serial.Serial()
     port.port = args.port
@@ -84,6 +108,9 @@ def main() -> int:
 
     print(f"bridge: {args.port} <-> {args.backend}  (u = capture + upload, "
           "d/r = other device commands, Ctrl+C = quit)")
+    print("bridge: sending X-Device-Key" if device_key
+          else "bridge: no device key (fine for a laptop backend without "
+               "DEVICE_API_KEY)")
     send_time(port)
     if args.upload:
         port.write(b"u")
@@ -113,7 +140,8 @@ def main() -> int:
                               f"expected {upload['length']} -- reporting failure")
                         status, detail = 0, "incomplete body"
                     else:
-                        status, detail = post_body(args.backend, upload["boundary"], body)
+                        status, detail = post_body(args.backend, upload["boundary"],
+                                                   body, device_key)
                     print(f"bridge: roi {upload['seq']} POST -> {status} "
                           f"({len(body)} bytes, {time.monotonic() - upload['t0']:.1f} s) "
                           f"{detail[:160]}")

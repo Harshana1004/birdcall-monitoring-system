@@ -6,3 +6,6 @@
 
 # Test captures from tools/capture_wav.py
 *.device.txt
+
+# Device API key -- never commit (copy include/secrets.example.h)
+include/secrets.h

@@ -44,9 +44,12 @@ class A7670 {
   int http_get(const char* host, uint16_t port, const char* path);
 
   // POSTs one ROI as multipart/form-data (see upload/roi_upload.h),
-  // streaming the body. Returns the HTTP status code (201 created,
-  // 200 duplicate retry), or a negative value on transport failure.
+  // streaming the body, with `device_key` (if non-empty) in the
+  // X-Device-Key header. Returns the HTTP status code (201 created,
+  // 200 duplicate retry, 401 bad key), or a negative value on
+  // transport failure.
   int post_roi(const char* host, uint16_t port, const char* path,
+               const char* device_key,
                const upload::RoiUploadFields& fields,
                const upload::RoiAudio& audio);
 
@@ -72,7 +75,8 @@ class A7670 {
   void tcp_close();
   bool send_request_head(const char* method, const char* host,
                          uint16_t port, const char* path,
-                         const char* content_type, size_t content_length);
+                         const char* content_type, size_t content_length,
+                         const char* device_key);
   int read_http_status(uint32_t timeout_ms);
 
   HardwareSerial& port_;

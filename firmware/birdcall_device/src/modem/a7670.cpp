@@ -404,7 +404,8 @@ bool A7670::tcp_send(const uint8_t* data, size_t length) {
 bool A7670::send_request_head(const char* method, const char* host,
                               uint16_t port, const char* path,
                               const char* content_type,
-                              size_t content_length) {
+                              size_t content_length,
+                              const char* device_key) {
   char host_header[96];
   if (port == 80) {
     std::snprintf(host_header, sizeof(host_header), "%s", host);
@@ -413,20 +414,26 @@ bool A7670::send_request_head(const char* method, const char* host,
                   static_cast<unsigned>(port));
   }
 
-  char head[384];
+  char key_header[160] = "";
+  if (device_key != nullptr && device_key[0] != '\0') {
+    std::snprintf(key_header, sizeof(key_header), "X-Device-Key: %s\r\n",
+                  device_key);
+  }
+
+  char head[512];
   int n;
   if (content_type != nullptr) {
     n = std::snprintf(head, sizeof(head),
                       "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: "
-                      "birdcall-device\r\nContent-Type: %s\r\n"
+                      "birdcall-device\r\n%sContent-Type: %s\r\n"
                       "Content-Length: %u\r\nConnection: close\r\n\r\n",
-                      method, path, host_header, content_type,
+                      method, path, host_header, key_header, content_type,
                       static_cast<unsigned>(content_length));
   } else {
     n = std::snprintf(head, sizeof(head),
                       "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: "
-                      "birdcall-device\r\nConnection: close\r\n\r\n",
-                      method, path, host_header);
+                      "birdcall-device\r\n%sConnection: close\r\n\r\n",
+                      method, path, host_header, key_header);
   }
   if (n <= 0 || static_cast<size_t>(n) >= sizeof(head)) {
     return false;
@@ -506,7 +513,7 @@ int A7670::http_get(const char* host, uint16_t port, const char* path) {
     return kErrConnect;
   }
   int status = kErrSend;
-  if (send_request_head("GET", host, port, path, nullptr, 0)) {
+  if (send_request_head("GET", host, port, path, nullptr, 0, nullptr)) {
     status = read_http_status(30000);
   }
   tcp_close();
@@ -514,6 +521,7 @@ int A7670::http_get(const char* host, uint16_t port, const char* path) {
 }
 
 int A7670::post_roi(const char* host, uint16_t port, const char* path,
+                    const char* device_key,
                     const upload::RoiUploadFields& fields,
                     const upload::RoiAudio& audio) {
   upload::CountingSink counter;
@@ -533,7 +541,7 @@ int A7670::post_roi(const char* host, uint16_t port, const char* path,
   Print* saved_log = log_;
   int status = kErrSend;
   if (send_request_head("POST", host, port, path, content_type,
-                        counter.total)) {
+                        counter.total, device_key)) {
     log_ = nullptr;
     ModemSink sink(*this);
     upload::write_roi_upload_body(fields, audio, sink);
