@@ -25,8 +25,81 @@ class ApplicationError(Exception):
 
 
 # ============================================================
+# Users and authentication
+# ============================================================
+
+
+class AuthenticationError(
+    ApplicationError
+):
+    status_code = 401
+    error_code = "not_authenticated"
+    default_message = (
+        "Sign in to access this resource."
+    )
+
+
+class InvalidCredentialsError(
+    ApplicationError
+):
+    status_code = 401
+    error_code = "invalid_credentials"
+    default_message = (
+        "Incorrect email or password."
+    )
+
+
+class PermissionDeniedError(
+    ApplicationError
+):
+    status_code = 403
+    error_code = "permission_denied"
+    default_message = (
+        "You do not have permission to do this."
+    )
+
+
+class EmailAlreadyRegisteredError(
+    ApplicationError
+):
+    status_code = 409
+    error_code = "email_already_registered"
+    default_message = (
+        "An account with this email already exists."
+    )
+
+
+class UserNotFoundError(
+    ApplicationError
+):
+    status_code = 404
+    error_code = "user_not_found"
+    default_message = "User not found."
+
+
+# ============================================================
 # Devices
 # ============================================================
+
+
+class InvalidDeviceClaimError(
+    ApplicationError
+):
+    status_code = 400
+    error_code = "invalid_device_claim"
+    default_message = (
+        "The device code or claim code is incorrect."
+    )
+
+
+class DeviceAlreadyClaimedError(
+    ApplicationError
+):
+    status_code = 409
+    error_code = "device_already_claimed"
+    default_message = (
+        "This device is already linked to an account."
+    )
 
 
 class DeviceNotFoundError(
@@ -44,6 +117,16 @@ class DuplicateDeviceCodeError(
     error_code = "duplicate_device_code"
     default_message = (
         "A device with this device code already exists."
+    )
+
+
+class DeviceAuthenticationError(
+    ApplicationError
+):
+    status_code = 401
+    error_code = "invalid_device_key"
+    default_message = (
+        "Missing or invalid X-Device-Key header."
     )
 
 

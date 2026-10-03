@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import (
     AsyncSession,
 )
 
+from src.api.auth import CurrentUser
 from src.api.schemas import (
     AnalysisDetectionResponse,
     AnalysisProcessingResponse,
@@ -44,6 +45,7 @@ from src.database import get_db
 from src.models import (
     Detection,
     Recording,
+    User,
 )
 from src.services.manual_analysis import (
     ManualAnalysisService,
@@ -70,6 +72,33 @@ DatabaseSession = Annotated[
 # ============================================================
 # Helpers
 # ============================================================
+
+
+def _ensure_session_visible(
+    user: User,
+    capture_session_id: uuid.UUID,
+    recordings: list[
+        Recording
+    ],
+) -> None:
+    """
+    A manual-analysis session is visible to the user who uploaded
+    it and to admins; otherwise it is reported as not found.
+    """
+
+    visible = bool(
+        recordings
+    ) and (
+        user.is_admin
+        or recordings[0].uploaded_by_user_id
+        == user.id
+    )
+
+    if not visible:
+        raise RecordingNotFoundError(
+            "Manual analysis session "
+            f"'{capture_session_id}' was not found."
+        )
 
 
 def _validate_upload_filename(
@@ -347,6 +376,7 @@ async def analyze_audio(
         ),
     ],
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> AnalysisResponse:
     """
     Upload and permanently analyse one complete WAV recording.
@@ -385,6 +415,9 @@ async def analyze_audio(
                 ),
                 original_filename=(
                     original_filename
+                ),
+                uploaded_by_user_id=(
+                    user.id
                 ),
             )
         )
@@ -522,6 +555,7 @@ async def analyze_audio(
 async def get_analysis(
     capture_session_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> AnalysisResponse:
     """
     Retrieve one previously completed manual-analysis session.
@@ -539,11 +573,11 @@ async def get_analysis(
         )
     )
 
-    if not recordings:
-        raise RecordingNotFoundError(
-            "Manual analysis session "
-            f"'{capture_session_id}' was not found."
-        )
+    _ensure_session_visible(
+        user,
+        capture_session_id,
+        recordings,
+    )
 
     detection_mapping = (
         await _load_detections_for_recordings(
@@ -663,6 +697,7 @@ async def get_analysis(
 )
 async def list_analyses(
     session: DatabaseSession,
+    user: CurrentUser,
 
     page: Annotated[
         int,
@@ -682,7 +717,8 @@ async def list_analyses(
     AnalysisSummaryResponse
 ]:
     """
-    Return previous manual-audio analysis sessions.
+    Return your previous manual-audio analysis sessions (admins:
+    everyone's).
     """
 
     manual_device = (
@@ -700,6 +736,12 @@ async def list_analyses(
             None
         ),
     ]
+
+    if not user.is_admin:
+        base_conditions.append(
+            Recording.uploaded_by_user_id
+            == user.id
+        )
 
     count_statement = (
         select(
@@ -848,6 +890,7 @@ async def list_analyses(
 async def get_analysis_visualization(
     capture_session_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> AnalysisVisualizationResponse:
     """
     Regenerate downsampled waveform and energy information from
@@ -866,11 +909,11 @@ async def get_analysis_visualization(
         )
     )
 
-    if not recordings:
-        raise RecordingNotFoundError(
-            "Manual analysis session "
-            f"'{capture_session_id}' was not found."
-        )
+    _ensure_session_visible(
+        user,
+        capture_session_id,
+        recordings,
+    )
 
     original_path = (
         service.get_original_audio_path(

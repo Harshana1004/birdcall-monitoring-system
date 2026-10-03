@@ -2,6 +2,7 @@ import json
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import (
@@ -15,9 +16,18 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.access import (
+    get_visible_recording,
+    recording_visibility,
+)
+from src.api.auth import (
+    CurrentUser,
+    require_device_key,
+)
 from src.api.schemas import (
     DetectionResponse,
     ErrorResponse,
@@ -42,11 +52,6 @@ from src.services.recordings import (
     RecordingService,
     process_recording_background,
 )
-
-from pathlib import Path
-from fastapi.responses import FileResponse
-from src.database import get_db
-
 
 
 router = APIRouter(
@@ -127,7 +132,18 @@ def parse_edge_processing_metadata(
     "",
     response_model=RecordingUploadResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(
+            require_device_key
+        ),
+    ],
     responses={
+        401: {
+            "model": ErrorResponse,
+            "description": (
+                "Missing or invalid X-Device-Key header."
+            ),
+        },
         200: {
             "model": RecordingUploadResponse,
             "description": (
@@ -427,6 +443,7 @@ async def upload_recording(
 )
 async def list_recordings(
     session: DatabaseSession,
+    user: CurrentUser,
 
     page: Annotated[
         int,
@@ -479,11 +496,15 @@ async def list_recordings(
     RecordingSummaryResponse
 ]:
     """
-    Return a paginated list of uploaded ROI recordings.
+    Return a paginated list of the ROI recordings you can see.
     """
 
     service = RecordingService(
         session
+    )
+
+    visibility = recording_visibility(
+        user
     )
 
     return await service.list_recordings(
@@ -495,6 +516,11 @@ async def list_recordings(
         ),
         processing_status=(
             processing_status
+        ),
+        extra_conditions=(
+            [visibility]
+            if visibility is not None
+            else None
         ),
     )
 
@@ -521,6 +547,7 @@ async def list_recordings(
 async def get_recording_detections(
     recording_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> list[
     DetectionResponse
 ]:
@@ -532,15 +559,11 @@ async def get_recording_detections(
     threshold.
     """
 
-    recording = await session.get(
-        Recording,
+    await get_visible_recording(
+        session,
+        user,
         recording_id,
     )
-
-    if recording is None:
-        raise RecordingNotFoundError(
-            f"Recording '{recording_id}' was not found."
-        )
 
     statement = (
         select(Detection)
@@ -591,19 +614,16 @@ async def get_recording_detections(
 async def get_recording(
     recording_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> RecordingResponse:
     """
     Return one recording by UUID.
     """
 
-    service = RecordingService(
-        session
-    )
-
-    recording = (
-        await service.get_recording(
-            recording_id
-        )
+    recording = await get_visible_recording(
+        session,
+        user,
+        recording_id,
     )
 
     return RecordingResponse.model_validate(
@@ -631,11 +651,18 @@ async def get_recording(
 async def delete_recording(
     recording_id: uuid.UUID,
     session: DatabaseSession,
+    user: CurrentUser,
 ) -> Response:
     """
     Delete a recording, its associated detections and its stored
-    WAV file.
+    WAV file (the device owner, the uploader, or an admin).
     """
+
+    await get_visible_recording(
+        session,
+        user,
+        recording_id,
+    )
 
     service = RecordingService(
         session
@@ -658,18 +685,17 @@ async def delete_recording(
 )
 async def get_recording_audio(
     recording_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
+    session: DatabaseSession,
+    user: CurrentUser,
 ):
     """
     Stream the stored WAV belonging to one Recording.
     """
 
-    service = RecordingService(
-        session
-    )
-
-    recording = await service.get_recording(
-        recording_id
+    recording = await get_visible_recording(
+        session,
+        user,
+        recording_id,
     )
 
     file_path = Path(
@@ -677,8 +703,8 @@ async def get_recording_audio(
     )
 
     if not file_path.exists():
-        raise FileNotFoundError(
-            "Stored audio file could not be found."
+        raise RecordingNotFoundError(
+            "The stored audio file for this recording is missing."
         )
 
     return FileResponse(

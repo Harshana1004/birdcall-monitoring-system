@@ -54,6 +54,82 @@ class ProcessingStatus(str, enum.Enum):
 
 
 # ============================================================
+# User
+# ============================================================
+
+
+class User(Base):
+    """
+    Person who signs in to the web application.
+
+    Normal users see only the devices they own (and their own
+    manual analyses); admins see everything.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    # Stored lower-cased; unique per account.
+    email: Mapped[str] = mapped_column(
+        String(320),
+        nullable=False,
+        unique=True,
+    )
+
+    # argon2id hash (src.core.security); never the password.
+    password_hash: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    display_name: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    devices: Mapped[list["Device"]] = relationship(
+        back_populates="owner",
+    )
+
+
+# ============================================================
 # Device
 # ============================================================
 
@@ -111,6 +187,32 @@ class Device(Base):
         server_default="true",
     )
 
+    # --------------------------------------------------------
+    # Ownership
+    # --------------------------------------------------------
+
+    # One owner per device; NULL until someone claims it.
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    # argon2id hash of the claim code shipped with the device. A
+    # user who knows device_code + claim code can claim it.
+    claim_code_hash: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -122,6 +224,10 @@ class Device(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    owner: Mapped["User | None"] = relationship(
+        back_populates="devices",
     )
 
     recordings: Mapped[list["Recording"]] = relationship(
@@ -148,6 +254,10 @@ class Device(Base):
         Index(
             "ix_devices_is_active",
             "is_active",
+        ),
+        Index(
+            "ix_devices_owner_id",
+            "owner_id",
         ),
     )
 
@@ -205,6 +315,19 @@ class Recording(Base):
         int | None
     ] = mapped_column(
         Integer,
+        nullable=True,
+    )
+
+    # User who created this recording through manual analysis
+    # (NULL for device uploads, which belong to the device owner).
+    uploaded_by_user_id: Mapped[
+        uuid.UUID | None
+    ] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+        ),
         nullable=True,
     )
 
@@ -520,6 +643,11 @@ class Recording(Base):
         Index(
             "ix_recordings_recorded_at",
             "recorded_at",
+        ),
+
+        Index(
+            "ix_recordings_uploaded_by_user_id",
+            "uploaded_by_user_id",
         ),
     )
 

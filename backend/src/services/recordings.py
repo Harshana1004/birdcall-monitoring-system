@@ -459,14 +459,22 @@ class RecordingService:
         processing_status: (
             ProcessingStatus | None
         ) = None,
+        extra_conditions: (
+            list | None
+        ) = None,
     ) -> PaginatedResponse[
         RecordingSummaryResponse
     ]:
         """
         Return a paginated list of recordings.
+
+        `extra_conditions` are additional WHERE clauses (e.g. the
+        caller's visibility scope).
         """
 
-        conditions = []
+        conditions = list(
+            extra_conditions or []
+        )
 
         if device_id is not None:
             conditions.append(

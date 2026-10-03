@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Generic, Self, TypeVar
+from typing import Any, Generic, Literal, Self, TypeVar
 
 from pydantic import (
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     field_validator,
     model_validator,
@@ -57,6 +58,125 @@ class PaginatedResponse(
     pagination: (
         PaginationMetadata
     )
+
+
+# ============================================================
+# User / authentication schemas
+# ============================================================
+
+
+class UserResponse(BaseModel):
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+    id: uuid.UUID
+    email: str
+    display_name: str | None
+    is_admin: bool
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+
+    password: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    display_name: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+
+    @field_validator(
+        "password"
+    )
+    @classmethod
+    def validate_password_length(
+        cls,
+        value: str,
+    ) -> str:
+        if len(value) < settings.password_min_length:
+            raise ValueError(
+                "Password must be at least "
+                f"{settings.password_min_length} characters."
+            )
+
+        return value
+
+    @field_validator(
+        "display_name"
+    )
+    @classmethod
+    def normalize_display_name(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+
+    password: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_at: datetime
+    user: UserResponse
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    new_password: str = Field(
+        min_length=1,
+        max_length=128,
+    )
+
+    @field_validator(
+        "new_password"
+    )
+    @classmethod
+    def validate_new_password_length(
+        cls,
+        value: str,
+    ) -> str:
+        if len(value) < settings.password_min_length:
+            raise ValueError(
+                "Password must be at least "
+                f"{settings.password_min_length} characters."
+            )
+
+        return value
+
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: str | None = Field(
+        default=None,
+        max_length=120,
+    )
+
+
+class UserAdminUpdate(BaseModel):
+    is_admin: bool | None = None
+    is_active: bool | None = None
 
 
 # ============================================================
@@ -234,6 +354,12 @@ class DeviceUpdate(BaseModel):
         return normalized
 
 
+class DeviceOwnerSummary(BaseModel):
+    id: uuid.UUID
+    email: str
+    display_name: str | None
+
+
 class DeviceResponse(
     DeviceBase
 ):
@@ -244,6 +370,64 @@ class DeviceResponse(
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+    owner: DeviceOwnerSummary | None = None
+    claimed_at: datetime | None = None
+    has_claim_code: bool = False
+
+    # Activity (filled by list/detail endpoints).
+    recording_count: int = 0
+    detection_count: int = 0
+    last_recording_at: datetime | None = None
+
+
+class DeviceCreatedResponse(BaseModel):
+    """
+    A newly registered device plus its claim code. The code is
+    only ever shown here (and when regenerated); the server keeps
+    just a hash.
+    """
+
+    device: DeviceResponse
+    claim_code: str
+
+
+class ClaimCodeResponse(BaseModel):
+    device_id: uuid.UUID
+    device_code: str
+    claim_code: str
+
+
+class DeviceClaimRequest(BaseModel):
+    device_code: str = Field(
+        min_length=1,
+        max_length=50,
+    )
+
+    claim_code: str = Field(
+        min_length=1,
+        max_length=40,
+    )
+
+    @field_validator(
+        "device_code"
+    )
+    @classmethod
+    def normalize_claim_device_code(
+        cls,
+        value: str,
+    ) -> str:
+        return value.strip().upper()
+
+
+class DeviceOwnerAssignment(BaseModel):
+    """
+    Admin: give a device to a user (by id or email), or clear the
+    owner with both fields null.
+    """
+
+    owner_id: uuid.UUID | None = None
+    owner_email: EmailStr | None = None
 
 
 # ============================================================
@@ -842,3 +1026,104 @@ class AnalysisVisualizationResponse(
     rois: list[
         AnalysisVisualizationROIResponse
     ]
+
+
+# ============================================================
+# Device activity: timelines, detection feed, summaries
+# ============================================================
+
+
+class TimelineDetection(BaseModel):
+    """
+    One BirdNET detection with its real-world time.
+
+    detected_at = recording.recorded_at + start_time_seconds;
+    device ROIs are not padded, so BirdNET's offsets are offsets
+    into the ROI itself.
+    """
+
+    id: uuid.UUID
+    scientific_name: str
+    common_name: str
+    confidence: float
+    start_time_seconds: float
+    end_time_seconds: float
+    detected_at: datetime
+
+
+class TimelineRecording(BaseModel):
+    """
+    One ROI snippet with its detections, for device timelines.
+    """
+
+    id: uuid.UUID
+    device_id: uuid.UUID
+    capture_session_id: uuid.UUID | None
+    snippet_sequence: int | None
+    recorded_at: datetime
+    uploaded_at: datetime
+    duration_seconds: float
+    roi_start_seconds: float | None
+    roi_end_seconds: float | None
+    processing_status: ProcessingStatus
+    processing_error: str | None
+    detections: list[
+        TimelineDetection
+    ] = Field(
+        default_factory=list
+    )
+
+
+class DetectionFeedItem(TimelineDetection):
+    """
+    A detection plus where it came from, for feeds across devices.
+    """
+
+    recording_id: uuid.UUID
+    recording_duration_seconds: float
+    device_id: uuid.UUID
+    device_code: str
+    device_name: str
+
+
+class SpeciesCount(BaseModel):
+    scientific_name: str
+    common_name: str
+    detection_count: int
+    max_confidence: float
+    last_detected_at: datetime | None
+
+
+class DailyActivity(BaseModel):
+    """
+    Counts for one calendar day in DEFAULT_TIMEZONE.
+    """
+
+    day: date
+    recording_count: int
+    detection_count: int
+
+
+class DeviceSummaryResponse(BaseModel):
+    device_id: uuid.UUID
+    recording_count: int
+    detection_count: int
+    species_count: int
+    first_recording_at: datetime | None
+    last_recording_at: datetime | None
+    top_species: list[SpeciesCount]
+    daily_activity: list[DailyActivity]
+
+
+class DashboardResponse(BaseModel):
+    device_count: int
+    active_device_count: int
+    recording_count: int
+    recordings_last_24h: int
+    detection_count: int
+    detections_last_24h: int
+    species_count: int
+    last_recording_at: datetime | None
+    top_species: list[SpeciesCount]
+    daily_activity: list[DailyActivity]
+    recent_detections: list[DetectionFeedItem]

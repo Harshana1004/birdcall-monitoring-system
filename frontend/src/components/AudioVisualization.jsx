@@ -13,6 +13,28 @@ import {
 } from "recharts";
 
 
+// Dark-theme chart colours (match index.css).
+const CHART = {
+  grid: "#233830",
+  axis: "#6c8379",
+  line: "#4fd08b",
+  roi: "#b5e655",
+  threshold: "#e3b45b",
+};
+
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    background: "#15221d",
+    border: "1px solid #2f4a40",
+    borderRadius: 8,
+    color: "#e4eee8",
+  },
+  labelStyle: {
+    color: "#9db3a8",
+  },
+};
+
+
 function AudioVisualization({
   visualization,
 }) {
@@ -91,12 +113,14 @@ function AudioVisualization({
               }}
             >
               <CartesianGrid
+                stroke={CHART.grid}
                 strokeDasharray="3 3"
               />
 
               <XAxis
                 dataKey="time"
                 type="number"
+                stroke={CHART.axis}
                 domain={[
                   "dataMin",
                   "dataMax",
@@ -107,6 +131,7 @@ function AudioVisualization({
               />
 
               <YAxis
+                stroke={CHART.axis}
                 domain={[
                   -1,
                   1,
@@ -114,6 +139,7 @@ function AudioVisualization({
               />
 
               <Tooltip
+                {...TOOLTIP_STYLE}
                 formatter={(value) => [
                   Number(value).toFixed(4),
                   "Amplitude",
@@ -140,7 +166,8 @@ function AudioVisualization({
                     x2={
                       roi.end_time_seconds
                     }
-                    fillOpacity={0.18}
+                    fill={CHART.roi}
+                    fillOpacity={0.14}
                   />
                 )
               )}
@@ -149,9 +176,9 @@ function AudioVisualization({
               <Area
                 type="monotone"
                 dataKey="amplitude"
-                stroke="currentColor"
-                fill="currentColor"
-                fillOpacity={0.12}
+                stroke={CHART.line}
+                fill={CHART.line}
+                fillOpacity={0.15}
                 isAnimationActive={
                   false
                 }
@@ -192,12 +219,14 @@ function AudioVisualization({
               }}
             >
               <CartesianGrid
+                stroke={CHART.grid}
                 strokeDasharray="3 3"
               />
 
               <XAxis
                 dataKey="time"
                 type="number"
+                stroke={CHART.axis}
                 domain={[
                   "dataMin",
                   "dataMax",
@@ -207,9 +236,12 @@ function AudioVisualization({
                 }
               />
 
-              <YAxis />
+              <YAxis
+                stroke={CHART.axis}
+              />
 
               <Tooltip
+                {...TOOLTIP_STYLE}
                 formatter={(value) => [
                   Number(value).toFixed(6),
                   "Energy",
@@ -229,11 +261,13 @@ function AudioVisualization({
                   visualization
                     .energy_threshold
                 }
+                stroke={CHART.threshold}
                 strokeDasharray="6 4"
                 label={{
                   value:
                     "Energy threshold",
                   position: "insideTopRight",
+                  fill: CHART.threshold,
                 }}
               />
 
@@ -252,6 +286,7 @@ function AudioVisualization({
                     x2={
                       roi.end_time_seconds
                     }
+                    fill={CHART.roi}
                     fillOpacity={0.12}
                   />
                 )
@@ -261,6 +296,7 @@ function AudioVisualization({
               <Line
                 type="monotone"
                 dataKey="energy"
+                stroke={CHART.line}
                 dot={false}
                 isAnimationActive={
                   false

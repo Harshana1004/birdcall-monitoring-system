@@ -43,6 +43,9 @@ storage/
 evaluation_ea/soundscape_data
 *.csv
 
+*.pem
+
+.claude
 
 
 

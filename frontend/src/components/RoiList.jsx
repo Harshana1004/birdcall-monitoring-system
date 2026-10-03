@@ -1,7 +1,5 @@
 import DetectionCard from "./DetectionCard";
-import {
-  getRecordingAudioUrl,
-} from "../api/analysisApi";
+import RecordingAudio from "./RecordingAudio";
 
 
 function RoiList({
@@ -87,20 +85,15 @@ function RoiList({
 
 
                 <div className="roi-audio">
-                <span className="roi-audio-label">
+                  <span className="roi-audio-label">
                     Detected snippet
-                </span>
+                  </span>
 
-                <audio
-                    controls
-                    preload="metadata"
-                    src={getRecordingAudioUrl(
-                    roi.recording_id
-                    )}
-                >
-                    Your browser does not support
-                    audio playback.
-                </audio>
+                  <RecordingAudio
+                    recordingId={
+                      roi.recording_id
+                    }
+                  />
                 </div>
 
                 {roi.detections

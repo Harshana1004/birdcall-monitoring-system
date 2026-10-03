@@ -76,6 +76,36 @@ class Settings(BaseSettings):
     )
 
     # --------------------------------------------------------
+    # Device authentication
+    # --------------------------------------------------------
+
+    # Shared secret edge devices send in the X-Device-Key header
+    # when uploading ROI snippets. Unset (None) disables the check,
+    # which is only appropriate for local development.
+    device_api_key: str | None = None
+
+    # --------------------------------------------------------
+    # User authentication
+    # --------------------------------------------------------
+
+    # Signs login tokens (HS256). Must be set to a long random value
+    # in production; if unset, a random key is generated at startup,
+    # so tokens stop working whenever the server restarts.
+    jwt_secret_key: str | None = None
+
+    access_token_expire_minutes: int = Field(
+        default=720,
+        ge=5,
+        le=43200,
+    )
+
+    password_min_length: int = Field(
+        default=8,
+        ge=6,
+        le=128,
+    )
+
+    # --------------------------------------------------------
     # Storage
     # --------------------------------------------------------
 

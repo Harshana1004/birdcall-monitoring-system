@@ -3,6 +3,7 @@ import {
 } from "react";
 
 import {
+  Link,
   useNavigate,
 } from "react-router-dom";
 
@@ -10,8 +11,15 @@ import {
   uploadAnalysis,
 } from "../api/analysisApi";
 
+import {
+  errorMessage,
+} from "../api/client";
+
 import AudioUpload from "../components/AudioUpload";
 import ProcessingIndicator from "../components/ProcessingIndicator";
+import {
+  PageHeader,
+} from "../components/ui";
 
 
 function ManualAnalysisPage() {
@@ -63,11 +71,10 @@ function ManualAnalysisPage() {
       );
 
       const message =
-        requestError
-          ?.response
-          ?.data
-          ?.message ??
-        "The recording could not be analysed.";
+        errorMessage(
+          requestError,
+          "The recording could not be analysed."
+        );
 
       setError(
         message
@@ -83,22 +90,22 @@ function ManualAnalysisPage() {
 
   return (
     <main className="page">
-      <header className="page-header">
-        <span className="eyebrow">
-          BirdCall Monitoring System
-        </span>
-
-        <h1>
-          Bird Audio Analysis
-        </h1>
-
-        <p>
-          Upload a WAV recording to
-          detect acoustic regions and
-          identify bird species using
-          BirdNET.
-        </p>
-      </header>
+      <PageHeader
+        eyebrow="Manual analysis"
+        title="Analyse a recording"
+        description={
+          "Upload a WAV recording to detect acoustic " +
+          "regions and identify bird species using BirdNET."
+        }
+        actions={
+          <Link
+            to="/analysis/history"
+            className="button button-secondary"
+          >
+            My analyses
+          </Link>
+        }
+      />
 
 
       <AudioUpload

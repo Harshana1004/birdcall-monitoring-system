@@ -1,9 +1,11 @@
 fastapi
 uvicorn[standard]
-sqlalchemy>=2.0
+sqlalchemy[asyncio]>=2.0
 asyncpg
 alembic
-pydantic>=2.0
+pydantic[email]>=2.0
+argon2-cffi
+PyJWT
 pydantic-settings
 python-multipart
 aiofiles

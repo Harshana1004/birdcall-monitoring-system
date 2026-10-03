@@ -219,9 +219,15 @@ class ManualAnalysisService:
             str | Path
         ),
         original_filename: str,
+        uploaded_by_user_id: (
+            uuid.UUID | None
+        ) = None,
     ) -> ManualAnalysisResult:
         """
         Analyze one complete manually uploaded source file.
+
+        `uploaded_by_user_id` marks every resulting Recording as
+        belonging to that user's analysis history.
         """
 
         source_path = (
@@ -345,6 +351,10 @@ class ManualAnalysisService:
                         original_filename=(
                             original_filename
                         ),
+
+                        uploaded_by_user_id=(
+                            uploaded_by_user_id
+                        ),
                     )
                 )
 
@@ -413,6 +423,9 @@ class ManualAnalysisService:
         ),
         roi: ProcessedROI,
         original_filename: str,
+        uploaded_by_user_id: (
+            uuid.UUID | None
+        ) = None,
     ) -> Recording:
         """
         Persist one processed ROI as an ordinary Recording.
@@ -513,6 +526,10 @@ class ManualAnalysisService:
             ),
 
             client_upload_id=None,
+
+            uploaded_by_user_id=(
+                uploaded_by_user_id
+            ),
 
             capture_session_id=(
                 capture_session_id

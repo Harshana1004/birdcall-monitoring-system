@@ -28,6 +28,13 @@ from src.api.recordings import (
 from src.api.analysis import (
     router as analysis_router,
 )
+from src.api.accounts import (
+    auth_router,
+    users_router,
+)
+from src.api.dashboard import (
+    router as dashboard_router,
+)
 
 
 from src.api.exception_handlers import (
@@ -159,6 +166,18 @@ register_exception_handlers(
 # API routers
 # ============================================================
 
+
+app.include_router(
+    auth_router
+)
+
+app.include_router(
+    users_router
+)
+
+app.include_router(
+    dashboard_router
+)
 
 app.include_router(
     devices_router
