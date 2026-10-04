@@ -53,11 +53,26 @@ enum class PipelineStatus {
 struct PipelineResult {
   PipelineStatus status;
   size_t frame_count;
+  // 2 x median: marks where a region starts and ends.
   float energy_threshold;
+  // A region is kept only if its loudest frame reaches this:
+  // max(ROI_MIN_PEAK_FACTOR x median, the ROI_MIN_PEAK_DBFS floor).
+  float peak_threshold;
   float duration_seconds;
-  // Peak absolute amplitude of the capture before normalization.
+  // Peak absolute amplitude of the capture before filtering and
+  // normalization.
   float input_peak;
+  // Peak absolute amplitude after the high-pass (the normalization
+  // divisor).
+  float band_peak;
+  // Absolute in-band levels of this capture, dBFS (mean-square
+  // energy of the smoothed curve, full scale = 1.0): the median is
+  // the noise floor, the max the loudest moment.
+  float noise_floor_dbfs;
+  float loudest_dbfs;
   size_t detected_region_count;
+  // Merged regions dropped by the peak gate.
+  size_t rejected_region_count;
   size_t roi_count;
 };
 
@@ -67,17 +82,24 @@ size_t pipeline_frame_count(size_t audio_length);
 
 // Runs the full on-device pipeline over one capture buffer:
 //
-//   peak normalize (in place)
+//   causal 1 kHz high-pass over the whole capture (in place)
+//     -> peak normalize (in place)
 //     -> short-time energy -> smoothing -> 2 x median threshold
-//     -> active frames -> merge / filter / pad regions
-//     -> exact ROI extraction -> causal 1 kHz high-pass filter
+//     -> active frames -> merge -> peak gate -> filter / pad regions
+//     -> exact ROI extraction (already filtered)
 //
-// Mirrors AudioProcessingService.process() with two documented
-// deviations: ROIs are not padded to 3 s (the backend does that),
-// and the high-pass filter is single-pass causal rather than
-// zero-phase sosfiltfilt.
+// Based on AudioProcessingService.process(), with documented edge
+// deviations:
+//   - ROIs are not padded to 3 s (the backend does that);
+//   - the high-pass is single-pass causal, not zero-phase
+//     sosfiltfilt, and runs before detection, so energy is measured
+//     in the band birds use (hum, wind and knocks no longer trigger
+//     ROIs);
+//   - the peak gate: a region must reach ROI_MIN_PEAK_FACTOR x the
+//     median and the absolute ROI_MIN_PEAK_DBFS floor, so windows
+//     holding only noise produce no ROIs.
 //
-// `audio` is modified in place (normalized).
+// `audio` is modified in place (filtered and normalized).
 PipelineResult process_capture(
     float* audio,
     size_t audio_length,

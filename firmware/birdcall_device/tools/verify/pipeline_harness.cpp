@@ -46,6 +46,11 @@ int main(int argc, char** argv) {
   std::fprintf(meta, "status %d\nframes %zu\nthreshold %.9g\nrois %zu\n",
                static_cast<int>(r.status), r.frame_count, r.energy_threshold,
                r.roi_count);
+  std::fprintf(meta,
+               "peak_threshold %.9g\nband_peak %.9g\nnoise_floor_dbfs %.9g\n"
+               "loudest_dbfs %.9g\nrejected %zu\n",
+               r.peak_threshold, r.band_peak, r.noise_floor_dbfs,
+               r.loudest_dbfs, r.rejected_region_count);
   for (size_t i = 0; i < r.roi_count; ++i) {
     const dsp::ProcessedRoi& p = rois[i];
     std::fprintf(meta, "roi %u %.9g %.9g %zu\n", p.index,

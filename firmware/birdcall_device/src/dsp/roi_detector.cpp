@@ -47,6 +47,8 @@ size_t build_raw_regions(
   bool in_region = false;
   size_t start_frame = 0;
 
+  float peak = 0.0f;
+
   auto frames_to_region = [&](size_t sf, size_t ef) -> RegionOfInterest {
     const float start_time =
         static_cast<float>(sf * hop_length) / sample_rate;
@@ -54,7 +56,7 @@ size_t build_raw_regions(
     const float end_time =
         static_cast<float>(ef * hop_length + frame_length) / sample_rate;
 
-    return RegionOfInterest{start_time, end_time};
+    return RegionOfInterest{start_time, end_time, peak};
   };
 
   for (size_t i = 0; i < frame_count; ++i) {
@@ -63,6 +65,9 @@ size_t build_raw_regions(
     if (is_active && !in_region) {
       start_frame = i;
       in_region = true;
+      peak = smoothed_energy[i];
+    } else if (is_active) {
+      peak = std::max(peak, smoothed_energy[i]);
     }
 
     if (!is_active && in_region) {
@@ -101,6 +106,8 @@ size_t merge_regions(
     if (gap <= merge_gap_seconds) {
       previous.end_time_seconds =
           std::max(previous.end_time_seconds, current.end_time_seconds);
+      previous.peak_energy =
+          std::max(previous.peak_energy, current.peak_energy);
       // start_time_seconds stays as previous's, matching the Python
       // implementation, which keeps previous.start_time.
     } else {
@@ -110,6 +117,22 @@ size_t merge_regions(
   }
 
   return write_index + 1;
+}
+
+size_t gate_regions_by_peak(
+    RegionOfInterest* regions,
+    size_t count,
+    float min_peak_energy) {
+  size_t write_index = 0;
+
+  for (size_t read_index = 0; read_index < count; ++read_index) {
+    if (regions[read_index].peak_energy >= min_peak_energy) {
+      regions[write_index] = regions[read_index];
+      ++write_index;
+    }
+  }
+
+  return write_index;
 }
 
 size_t filter_and_pad_regions(
@@ -127,7 +150,7 @@ size_t filter_and_pad_regions(
       continue;
     }
 
-    RegionOfInterest padded;
+    RegionOfInterest padded = region;
 
     padded.start_time_seconds =
         std::max(0.0f, region.start_time_seconds - padding_seconds);
@@ -146,6 +169,7 @@ size_t detect_regions(
     const float* smoothed_energy,
     size_t frame_count,
     float threshold,
+    float min_peak_energy,
     uint32_t hop_length,
     uint32_t frame_length,
     uint32_t sample_rate,
@@ -154,7 +178,12 @@ size_t detect_regions(
     float padding_seconds,
     float audio_duration_seconds,
     RegionOfInterest* regions_out,
-    size_t regions_out_capacity) {
+    size_t regions_out_capacity,
+    size_t* rejected_out) {
+  if (rejected_out != nullptr) {
+    *rejected_out = 0;
+  }
+
   if (frame_count == 0) {
     return 0;
   }
@@ -166,8 +195,15 @@ size_t detect_regions(
   const size_t merged_count =
       merge_regions(regions_out, raw_count, merge_gap_seconds);
 
+  const size_t loud_count =
+      gate_regions_by_peak(regions_out, merged_count, min_peak_energy);
+
+  if (rejected_out != nullptr) {
+    *rejected_out = merged_count - loud_count;
+  }
+
   const size_t final_count = filter_and_pad_regions(
-      regions_out, merged_count, min_duration_seconds, padding_seconds,
+      regions_out, loud_count, min_duration_seconds, padding_seconds,
       audio_duration_seconds);
 
   return final_count;

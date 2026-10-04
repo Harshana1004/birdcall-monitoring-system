@@ -11,8 +11,8 @@ g++) on a capture WAV, then for every ROI body:
   * edge_processing_metadata is a JSON object under the size limit
   * the WAV is mono 16 kHz PCM16, its duration matches the ROI
     interval within the backend's tolerance, and its samples match
-    the Python reference (exact ROI + causal sosfilt) to within
-    PCM16 rounding
+    the Python reference (edge_reference.py) to within PCM16
+    rounding
 
 With --post URL --device-id UUID it also POSTs each body to a
 running backend and prints the response.
@@ -37,7 +37,6 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import butter, sosfilt
 
 HERE = Path(__file__).resolve().parent
 FIRMWARE = HERE.parents[1]
@@ -46,7 +45,7 @@ sys.path.insert(0, str(REPO / "backend"))
 
 from src.api.schemas import RecordingUploadMetadata  # noqa: E402
 from src.core.config import settings  # noqa: E402
-from src.services.audio_processing import AudioProcessingService  # noqa: E402
+from edge_reference import edge_pipeline  # noqa: E402
 
 EXPECTED_FIELDS = [
     "device_id", "client_upload_id", "capture_session_id",
@@ -58,17 +57,7 @@ PLACEHOLDER_DEVICE = "00000000-0000-0000-0000-000000000000"
 
 
 def reference_rois(audio: np.ndarray, sr: int) -> list[np.ndarray]:
-    service = AudioProcessingService()
-    normalized = service.normalize_audio(audio)
-    regions, _, _ = service.detect_regions(normalized)
-    sos = butter(4, 1000.0 / (sr / 2), btype="highpass", output="sos")
-    out = []
-    for region in regions:
-        s = max(0, int(round(region.start_time * sr)))
-        e = min(len(normalized), int(round(region.end_time * sr)))
-        if e > s:
-            out.append(sosfilt(sos, normalized[s:e]))
-    return out
+    return [samples for _, _, _, samples in edge_pipeline(audio, sr).rois]
 
 
 def parse_multipart(body: bytes, boundary: str) -> dict[str, tuple[bytes, dict]]:

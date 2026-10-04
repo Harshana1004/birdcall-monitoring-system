@@ -32,6 +32,7 @@ struct MonitorStats {
                           // audio overflowed
   uint32_t sessions_started;
   uint32_t rois_detected;
+  uint32_t regions_rejected;  // too quiet for the peak gate
   uint32_t rois_queued;
   uint32_t rois_dropped_full;  // queue full
   uint32_t uploads_ok;
@@ -39,12 +40,22 @@ struct MonitorStats {
   uint32_t upload_failures;    // network/transport failures (retried)
   size_t queue_depth;
   size_t queue_used_bytes;
+
+  // In-band (>1 kHz) levels, dBFS, over the windows processed since
+  // the previous monitor_stats() call (level_windows of them; the
+  // levels are meaningless when it is 0). For tuning the peak gate.
+  uint32_t level_windows;
+  float noise_floor_min_dbfs;
+  float noise_floor_max_dbfs;
+  float loudest_max_dbfs;
 };
 
 // Allocates buffers, starts the mic and the three tasks. Returns
 // false if memory or the mic could not be set up.
 bool start_monitor(Transport transport);
 
+// Counters are cumulative; the level fields cover the time since
+// the previous call and are reset by it.
 MonitorStats monitor_stats();
 
 }  // namespace app

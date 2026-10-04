@@ -337,6 +337,11 @@ void run_test_capture(CaptureMode mode) {
                 result.energy_threshold,
                 static_cast<unsigned>(result.roi_count),
                 elapsed_us / 1000.0f);
+  Serial.printf("levels >1 kHz: noise floor %.1f dBFS, loudest %.1f dBFS; "
+                "%u quiet region(s) rejected (gate x%.0f median, %.1f dBFS)\n",
+                result.noise_floor_dbfs, result.loudest_dbfs,
+                static_cast<unsigned>(result.rejected_region_count),
+                ROI_MIN_PEAK_FACTOR, ROI_MIN_PEAK_DBFS);
 
   for (size_t i = 0; i < result.roi_count; ++i) {
     Serial.printf("  roi %u: %.3f s -> %.3f s (%u samples)\n",
@@ -507,6 +512,16 @@ void print_monitor_status() {
       static_cast<unsigned>(s.upload_failures),
       static_cast<unsigned>(s.queue_depth), s.queue_used_bytes / 1024.0,
       static_cast<unsigned>(ESP.getFreePsram()));
+
+  if (s.level_windows > 0) {
+    Serial.printf(
+        "levels: last %u windows, >1 kHz: noise floor %.1f..%.1f dBFS, "
+        "loudest %.1f dBFS; gate x%.0f median and %.1f dBFS; %u quiet "
+        "regions rejected so far\r\n",
+        static_cast<unsigned>(s.level_windows), s.noise_floor_min_dbfs,
+        s.noise_floor_max_dbfs, s.loudest_max_dbfs, ROI_MIN_PEAK_FACTOR,
+        ROI_MIN_PEAK_DBFS, static_cast<unsigned>(s.regions_rejected));
+  }
 }
 
 }  // namespace

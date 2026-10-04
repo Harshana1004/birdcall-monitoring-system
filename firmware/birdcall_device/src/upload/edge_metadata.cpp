@@ -1,5 +1,6 @@
 #include "upload/edge_metadata.h"
 
+#include <cmath>
 #include <cstdio>
 
 #include "config.h"
@@ -8,6 +9,10 @@ namespace upload {
 
 size_t format_edge_metadata(char* out, size_t capacity,
                             const dsp::PipelineResult& result) {
+  // Infinite when the capture was all zeros; JSON has no infinity.
+  const float peak_threshold =
+      std::isfinite(result.peak_threshold) ? result.peak_threshold : -1.0f;
+
   const int written = std::snprintf(
       out, capacity,
       "{"
@@ -15,23 +20,30 @@ size_t format_edge_metadata(char* out, size_t capacity,
       "\"microphone\":\"INMP441\","
       "\"sample_rate_hz\":%u,"
       "\"dc_block_cutoff_hz\":%.1f,"
-      "\"normalization\":{\"method\":\"peak\",\"input_peak\":%.6g},"
+      "\"highpass\":{\"type\":\"butterworth\",\"order\":%u,"
+      "\"cutoff_hz\":%.1f,\"mode\":\"causal_sosfilt\","
+      "\"applied_to\":\"capture_before_detection\"},"
+      "\"normalization\":{\"method\":\"peak\",\"input_peak\":%.6g,"
+      "\"band_peak\":%.6g},"
       "\"energy\":{\"frame_seconds\":%.3f,\"hop_seconds\":%.3f,"
       "\"smoothing_window_frames\":%u,\"threshold_factor\":%.2f,"
       "\"threshold\":%.6g},"
+      "\"peak_gate\":{\"min_peak_factor\":%.2f,\"min_peak_dbfs\":%.1f,"
+      "\"threshold\":%.6g,\"rejected_regions\":%u},"
+      "\"levels_dbfs\":{\"noise_floor\":%.1f,\"loudest\":%.1f},"
       "\"roi\":{\"min_duration_seconds\":%.2f,\"merge_gap_seconds\":%.2f,"
       "\"padding_seconds\":%.2f,\"birdnet_padding\":\"none\"},"
-      "\"highpass\":{\"type\":\"butterworth\",\"order\":%u,"
-      "\"cutoff_hz\":%.1f,\"mode\":\"causal_sosfilt\"},"
       "\"capture_seconds\":%.3f"
       "}",
       static_cast<unsigned>(SAMPLE_RATE_HZ), MIC_DC_BLOCK_CUTOFF_HZ,
-      result.input_peak, FRAME_DURATION_SECONDS, HOP_DURATION_SECONDS,
-      static_cast<unsigned>(ENERGY_SMOOTHING_WINDOW), ROI_THRESHOLD_FACTOR,
-      result.energy_threshold, ROI_MIN_DURATION_SECONDS,
-      ROI_MERGE_GAP_SECONDS, ROI_PADDING_SECONDS,
       static_cast<unsigned>(HIGHPASS_FILTER_ORDER), HIGHPASS_CUTOFF_HZ,
-      result.duration_seconds);
+      result.input_peak, result.band_peak, FRAME_DURATION_SECONDS,
+      HOP_DURATION_SECONDS, static_cast<unsigned>(ENERGY_SMOOTHING_WINDOW),
+      ROI_THRESHOLD_FACTOR, result.energy_threshold, ROI_MIN_PEAK_FACTOR,
+      ROI_MIN_PEAK_DBFS, peak_threshold,
+      static_cast<unsigned>(result.rejected_region_count),
+      result.noise_floor_dbfs, result.loudest_dbfs, ROI_MIN_DURATION_SECONDS,
+      ROI_MERGE_GAP_SECONDS, ROI_PADDING_SECONDS, result.duration_seconds);
 
   if (written < 0 || static_cast<size_t>(written) >= capacity) {
     return 0;

@@ -4,6 +4,7 @@
 #include <esp_random.h>
 #include <esp_timer.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "app/roi_queue.h"
@@ -62,6 +63,32 @@ TaskHandle_t g_upload_task = nullptr;
 // Written by one task each; plain 32-bit stores are atomic here, and
 // the stats are informational.
 MonitorStats g_stats = {};
+
+// Level summary since the last monitor_stats(); written by the
+// process task, read and reset by the status reader.
+struct Levels {
+  uint32_t windows;
+  float noise_min;
+  float noise_max;
+  float loudest_max;
+};
+Levels g_levels = {};
+portMUX_TYPE g_levels_lock = portMUX_INITIALIZER_UNLOCKED;
+
+void record_levels(const dsp::PipelineResult& result) {
+  portENTER_CRITICAL(&g_levels_lock);
+  if (g_levels.windows == 0) {
+    g_levels.noise_min = result.noise_floor_dbfs;
+    g_levels.noise_max = result.noise_floor_dbfs;
+    g_levels.loudest_max = result.loudest_dbfs;
+  } else {
+    g_levels.noise_min = std::min(g_levels.noise_min, result.noise_floor_dbfs);
+    g_levels.noise_max = std::max(g_levels.noise_max, result.noise_floor_dbfs);
+    g_levels.loudest_max = std::max(g_levels.loudest_max, result.loudest_dbfs);
+  }
+  ++g_levels.windows;
+  portEXIT_CRITICAL(&g_levels_lock);
+}
 
 // Capture task scratch for audio read while no window is free.
 float g_discard[kReadChunkSamples];
@@ -174,7 +201,9 @@ void process_task(void*) {
       next_sequence = 0;
     }
 
+    record_levels(result);
     g_stats.rois_detected += result.roi_count;
+    g_stats.regions_rejected += result.rejected_region_count;
     if (result.roi_count == 0) {
       continue;
     }
@@ -385,6 +414,14 @@ MonitorStats monitor_stats() {
     stats.queue_used_bytes = g_queue.used_samples() * sizeof(int16_t);
     xSemaphoreGive(g_queue_mutex);
   }
+
+  portENTER_CRITICAL(&g_levels_lock);
+  stats.level_windows = g_levels.windows;
+  stats.noise_floor_min_dbfs = g_levels.noise_min;
+  stats.noise_floor_max_dbfs = g_levels.noise_max;
+  stats.loudest_max_dbfs = g_levels.loudest_max;
+  g_levels = {};
+  portEXIT_CRITICAL(&g_levels_lock);
   return stats;
 }
 

@@ -1,11 +1,11 @@
 """
-Verify dsp::process_capture() against the backend's
-AudioProcessingService on a synthetic signal.
+Verify dsp::process_capture() against the Python reference on
+synthetic signals.
 
-Reference = the backend's own normalize/detect_regions, then exact
-ROI extraction (no 3 s padding) and causal scipy sosfilt -- i.e.
-the reference pipeline with the two documented on-device
-deviations applied.
+Reference = edge_reference.edge_pipeline(): the backend's own
+AudioProcessingService steps with the documented on-device
+deviations applied (high-pass before detection, peak gate, no 3 s
+padding, causal sosfilt).
 
 Run from the repo root with the backend venv:
 
@@ -22,7 +22,6 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-from scipy.signal import butter, sosfilt
 
 HERE = Path(__file__).resolve().parent
 FIRMWARE = HERE.parents[1]
@@ -30,16 +29,17 @@ REPO = FIRMWARE.parents[1]
 
 sys.path.insert(0, str(REPO / "backend"))
 
-from src.services.audio_processing import AudioProcessingService  # noqa: E402
+from edge_reference import edge_pipeline  # noqa: E402
 
 SAMPLE_RATE = 16000
 
 
 def make_signal() -> np.ndarray:
-    """10 s of low noise with bird-like bursts that exercise merge,
-    min-duration discard, edge clipping and a long (>3 s) ROI."""
+    """12 s of low noise with bird-like bursts that exercise merge,
+    min-duration discard, the peak gate, edge clipping and a long
+    (>3 s) ROI."""
     rng = np.random.default_rng(1234)
-    n = 10 * SAMPLE_RATE
+    n = 12 * SAMPLE_RATE
     t = np.arange(n) / SAMPLE_RATE
     audio = 0.002 * rng.standard_normal(n)
 
@@ -59,25 +59,10 @@ def make_signal() -> np.ndarray:
     audio[int(5.0 * SAMPLE_RATE):int(8.8 * SAMPLE_RATE)] += (
         0.05 * np.sin(2 * np.pi * 300 * t[int(5.0 * SAMPLE_RATE):int(8.8 * SAMPLE_RATE)])
     )                                    # low-frequency hum for the HPF
-    burst(9.7, 0.3, 3500, 3600, 0.5)    # clipped at end boundary
+    burst(9.6, 0.4, 3000, 3200, 0.012)  # ~4x the median: above 2x,
+                                         # rejected by the peak gate
+    burst(11.7, 0.3, 3500, 3600, 0.5)   # clipped at end boundary
     return audio.astype(np.float32)
-
-
-def reference(audio: np.ndarray):
-    service = AudioProcessingService()
-    normalized = service.normalize_audio(audio)
-    regions, smoothed, threshold = service.detect_regions(normalized)
-    sos = butter(4, 1000.0 / (SAMPLE_RATE / 2), btype="highpass", output="sos")
-
-    rois = []
-    for index, region in enumerate(regions):
-        s = max(0, int(round(region.start_time * SAMPLE_RATE)))
-        e = min(len(normalized), int(round(region.end_time * SAMPLE_RATE)))
-        if e <= s:
-            continue
-        seg = sosfilt(sos, normalized[s:e]).astype(np.float32)
-        rois.append((index, region.start_time, region.end_time, seg))
-    return len(smoothed), threshold, rois
 
 
 def run_harness(audio: np.ndarray, work: Path):
@@ -86,7 +71,7 @@ def run_harness(audio: np.ndarray, work: Path):
         str(p) for p in sorted((FIRMWARE / "src" / "dsp").glob("*.cpp"))
     ]
     subprocess.run(
-        ["g++", "-std=c++17", "-O2", "-Wall", "-Wextra",
+        ["g++", "-std=c++17", "-O2", "-static", "-Wall", "-Wextra",
          "-I", str(FIRMWARE / "include"), "-I", str(FIRMWARE / "src"),
          *sources, "-o", str(exe)],
         check=True,
@@ -110,28 +95,40 @@ def run_harness(audio: np.ndarray, work: Path):
     return info, rois
 
 
-def main() -> int:
-    audio = make_signal()
-    ref_frames, ref_threshold, ref_rois = reference(audio.copy())
-
-    with tempfile.TemporaryDirectory() as tmp:
-        info, rois = run_harness(audio, Path(tmp))
-
-    failures = []
-
-    def check(ok: bool, message: str):
-        print(("  ok   " if ok else "  FAIL ") + message)
-        if not ok:
-            failures.append(message)
+def compare(name: str, audio: np.ndarray, work: Path, check,
+            expect_rois: int | None = None, expect_rejected: int | None = None):
+    print(name)
+    ref = edge_pipeline(audio.copy())
+    info, rois = run_harness(audio, work)
 
     check(info["status"] == 0, f"status = {int(info['status'])}")
-    check(info["frames"] == ref_frames,
-          f"frames {int(info['frames'])} vs {ref_frames}")
-    rel = abs(info["threshold"] - ref_threshold) / ref_threshold
-    check(rel < 1e-5, f"threshold {info['threshold']:.6g} vs {ref_threshold:.6g} (rel {rel:.1e})")
-    check(len(rois) == len(ref_rois), f"roi count {len(rois)} vs {len(ref_rois)}")
+    check(info["frames"] == ref.frames, f"frames {int(info['frames'])} vs {ref.frames}")
 
-    for (i, s, e, a), (ri, rs, re, ra) in zip(rois, ref_rois):
+    def close(key: str, ref_value: float, tol: float = 1e-4):
+        value = info[key]
+        if np.isinf(ref_value):
+            check(np.isinf(value), f"{key} {value} vs inf")
+            return
+        rel = abs(value - ref_value) / max(abs(ref_value), 1e-30)
+        check(rel < tol, f"{key} {value:.6g} vs {ref_value:.6g} (rel {rel:.1e})")
+
+    close("threshold", ref.threshold)
+    close("peak_threshold", ref.peak_threshold)
+    close("band_peak", ref.band_peak)
+    check(abs(info["noise_floor_dbfs"] - ref.noise_floor_dbfs) < 0.01,
+          f"noise floor {info['noise_floor_dbfs']:.2f} vs {ref.noise_floor_dbfs:.2f} dBFS")
+    check(abs(info["loudest_dbfs"] - ref.loudest_dbfs) < 0.01,
+          f"loudest {info['loudest_dbfs']:.2f} vs {ref.loudest_dbfs:.2f} dBFS")
+    check(info["rejected"] == ref.rejected,
+          f"rejected regions {int(info['rejected'])} vs {ref.rejected}")
+    check(len(rois) == len(ref.rois), f"roi count {len(rois)} vs {len(ref.rois)}")
+    if expect_rois is not None:
+        check(len(rois) == expect_rois, f"expected {expect_rois} ROIs, got {len(rois)}")
+    if expect_rejected is not None:
+        check(info["rejected"] == expect_rejected,
+              f"expected {expect_rejected} rejected, got {int(info['rejected'])}")
+
+    for (i, s, e, a), (ri, rs, re, ra) in zip(rois, ref.rois):
         label = f"roi {ri} [{rs:.3f}s, {re:.3f}s]"
         check(i == ri and abs(s - rs) < 1e-5 and abs(e - re) < 1e-5,
               f"{label} bounds")
@@ -139,6 +136,25 @@ def main() -> int:
         if len(a) == len(ra):
             err = float(np.max(np.abs(a - ra)))
             check(err < 1e-4, f"{label} max abs error {err:.2e}")
+
+
+def main() -> int:
+    audio = make_signal()
+    failures = []
+
+    def check(ok: bool, message: str):
+        print(("  ok   " if ok else "  FAIL ") + message)
+        if not ok:
+            failures.append(message)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # Bursts: merged pair, long ROI and the two edge-clipped ones
+        # survive; the quiet burst is gated; the short one is too short.
+        compare("synthetic capture", audio, Path(tmp), check,
+                expect_rois=4, expect_rejected=1)
+        # The same capture 80 dB quieter is below the absolute floor.
+        compare("same capture at -80 dB", audio * np.float32(1e-4), Path(tmp),
+                check, expect_rois=0)
 
     print("PASS" if not failures else f"{len(failures)} check(s) failed")
     return 1 if failures else 0

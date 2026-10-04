@@ -59,8 +59,22 @@ constexpr uint32_t HOP_LENGTH_SAMPLES =
 // smooth_energy(window_size=15) in the reference implementation.
 constexpr uint32_t ENERGY_SMOOTHING_WINDOW = 15;
 
-// calculate_threshold: threshold = median(smoothed_energy) * factor
+// calculate_threshold: threshold = median(smoothed_energy) * factor.
+// Marks where a region starts and ends.
 constexpr float ROI_THRESHOLD_FACTOR = 2.0f;
+
+// Peak gate (edge-only; not in the Python reference). Energy is
+// measured after the 1 kHz high-pass, and a merged region is kept
+// only if its loudest smoothed frame reaches BOTH:
+//   - ROI_MIN_PEAK_FACTOR x the window's median (8 = ~9 dB above
+//     the noise; 2 x median alone triggers on noise fluctuations),
+//   - ROI_MIN_PEAK_DBFS, an absolute level before normalization
+//     (mean-square energy, full scale = 1.0, so a full-scale sine is
+//     -3 dBFS), so near-silent windows produce nothing.
+// Tune both from the "levels" part of the 60 s status line: set the
+// floor a few dB above the noise-floor range you see with no birds.
+constexpr float ROI_MIN_PEAK_FACTOR = 8.0f;
+constexpr float ROI_MIN_PEAK_DBFS = -80.0f;
 
 // _filter_and_pad_regions
 constexpr float ROI_MIN_DURATION_SECONDS = 0.30f;
@@ -117,7 +131,7 @@ constexpr bool UPLOAD_VIA_MODEM = true;
 
 // Sent as edge_processing_version with every ROI. Bump whenever
 // the on-device processing changes in a way that affects output.
-constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.0.0";
+constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.1.0";
 
 // UUID of this device's row in the backend's devices table
 // (POST /api/v1/devices returns it). Not secret. This is ESP32-DEV-01

@@ -7,7 +7,22 @@
 #include "dsp/segmenter.h"
 #include "dsp/smoothing.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 namespace dsp {
+
+namespace {
+
+// Smoothed energy of normalized audio -> absolute dBFS, undoing the
+// normalization (energy scales with amplitude squared).
+float energy_to_dbfs(float energy, float band_peak) {
+  const float absolute = energy * band_peak * band_peak;
+  return absolute > 0.0f ? 10.0f * std::log10(absolute) : -150.0f;
+}
+
+}  // namespace
 
 size_t pipeline_frame_count(size_t audio_length) {
   return short_time_energy_frame_count(audio_length, FRAME_LENGTH_SAMPLES,
@@ -25,7 +40,15 @@ PipelineResult process_capture(
   result.duration_seconds =
       static_cast<float>(audio_length) / SAMPLE_RATE_HZ;
 
-  result.input_peak = normalize_audio_in_place(audio, audio_length);
+  float input_peak = 0.0f;
+  for (size_t i = 0; i < audio_length; ++i) {
+    input_peak = std::max(input_peak, std::fabs(audio[i]));
+  }
+  result.input_peak = input_peak;
+
+  // Detect in the band the ROIs are uploaded in (edge deviation).
+  apply_highpass_filter(audio, audio_length);
+  result.band_peak = normalize_audio_in_place(audio, audio_length);
 
   const size_t frame_count = pipeline_frame_count(audio_length);
   result.frame_count = frame_count;
@@ -56,12 +79,33 @@ PipelineResult process_capture(
                           ROI_THRESHOLD_FACTOR, workspace.energy_scratch);
   result.energy_threshold = threshold;
 
+  const float median = threshold / ROI_THRESHOLD_FACTOR;
+  float loudest = 0.0f;
+  for (size_t i = 0; i < frame_count; ++i) {
+    loudest = std::max(loudest, workspace.smoothed_energy[i]);
+  }
+  result.noise_floor_dbfs = energy_to_dbfs(median, result.band_peak);
+  result.loudest_dbfs = energy_to_dbfs(loudest, result.band_peak);
+
+  // Peak gate: relative to this capture's noise, and an absolute
+  // floor converted into normalized units. All-zero audio keeps
+  // nothing.
+  float peak_threshold = std::numeric_limits<float>::infinity();
+  if (result.band_peak > 0.0f) {
+    const float floor_energy =
+        std::pow(10.0f, ROI_MIN_PEAK_DBFS / 10.0f) /
+        (result.band_peak * result.band_peak);
+    peak_threshold = std::max({threshold, ROI_MIN_PEAK_FACTOR * median,
+                               floor_energy});
+  }
+  result.peak_threshold = peak_threshold;
+
   const size_t region_count = detect_regions(
-      workspace.smoothed_energy, frame_count, threshold, HOP_LENGTH_SAMPLES,
-      FRAME_LENGTH_SAMPLES, SAMPLE_RATE_HZ, ROI_MERGE_GAP_SECONDS,
-      ROI_MIN_DURATION_SECONDS, ROI_PADDING_SECONDS,
-      result.duration_seconds, workspace.regions,
-      workspace.region_capacity);
+      workspace.smoothed_energy, frame_count, threshold, peak_threshold,
+      HOP_LENGTH_SAMPLES, FRAME_LENGTH_SAMPLES, SAMPLE_RATE_HZ,
+      ROI_MERGE_GAP_SECONDS, ROI_MIN_DURATION_SECONDS, ROI_PADDING_SECONDS,
+      result.duration_seconds, workspace.regions, workspace.region_capacity,
+      &result.rejected_region_count);
   result.detected_region_count = region_count;
 
   size_t arena_used = 0;
@@ -87,8 +131,6 @@ PipelineResult process_capture(
 
     const size_t extracted = extract_roi(audio, audio_length, SAMPLE_RATE_HZ,
                                          region, segment, needed);
-
-    apply_highpass_filter(segment, extracted);
 
     processed_out[result.roi_count] =
         ProcessedRoi{static_cast<uint32_t>(i), region, segment, extracted};

@@ -17,7 +17,7 @@
 
 namespace app {
 
-constexpr size_t kQueuedMetadataCapacity = 640;
+constexpr size_t kQueuedMetadataCapacity = 1024;
 
 struct QueuedRoi {
   char client_upload_id[upload::kUuidStringLength + 1];
