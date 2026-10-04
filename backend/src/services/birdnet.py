@@ -226,10 +226,13 @@ class BirdNetService:
         try:
             with self._prediction_lock:
                 prediction_result = (
-                    model.predict(
-                        str(
-                            audio_path
-                        ),
+                    self._predict(
+                        model,
+                        [
+                            str(
+                                audio_path
+                            )
+                        ],
 
                         top_k=(
                             settings
@@ -282,7 +285,8 @@ class BirdNetService:
         try:
             with self._prediction_lock:
                 prediction_result = (
-                    model.predict(
+                    self._predict(
+                        model,
                         [
                             str(
                                 path
@@ -338,6 +342,144 @@ class BirdNetService:
                 ),
             )
         )
+
+    # ========================================================
+    # Leak-free prediction
+    # ========================================================
+
+    @classmethod
+    def _predict(
+        cls,
+        model: Any,
+        inputs: list[
+            str
+        ],
+        **options: Any,
+    ) -> Any:
+        """
+        Equivalent of model.predict(inputs, **options).
+
+        birdnet 0.2.16 leaks on every prediction session: its
+        logging Queue (a pipe pair plus a feeder thread) and the
+        QueueHandler holding it are never released, and two log
+        files are left in the temp directory. A long-running
+        server hits the open-file limit after ~500 predictions
+        ("Too many open files"), so the session is run here and
+        those leftovers are released after it closes.
+        """
+
+        session = model.predict_session(
+            max_n_files=max(
+                1,
+                len(
+                    inputs
+                ),
+            ),
+            **options,
+        )
+
+        session_id: str | None = None
+        logging_resources: Any = None
+
+        try:
+            with session:
+                session_id = (
+                    session._session_id
+                )
+
+                logging_resources = (
+                    session._resources
+                    .logging_resources
+                )
+
+                return session.run(
+                    inputs
+                )
+
+        finally:
+            if session_id is not None:
+                cls._release_session_logging(
+                    session_id,
+                    logging_resources,
+                )
+
+    @staticmethod
+    def _release_session_logging(
+        session_id: str,
+        logging_resources: Any,
+    ) -> None:
+        """
+        Free what a closed birdnet session leaves behind. Best
+        effort: this reaches into birdnet internals, so a
+        failure is logged and never fails the prediction.
+        """
+
+        try:
+            session_logger_name = (
+                f"birdnet.session_{session_id}"
+            )
+
+            session_logger = logging.getLogger(
+                session_logger_name
+            )
+
+            for handler in list(
+                session_logger.handlers
+            ):
+                session_logger.removeHandler(
+                    handler
+                )
+
+                handler.close()
+
+            if logging_resources is not None:
+                logging_queue = (
+                    logging_resources
+                    .logging_queue
+                )
+
+                # Its reader is gone: never block on unread data.
+                logging_queue.cancel_join_thread()
+                logging_queue.close()
+
+                for log_file in (
+                    logging_resources.session_log_file,
+                    logging_resources.global_log_file,
+                ):
+                    Path(
+                        log_file
+                    ).unlink(
+                        missing_ok=True
+                    )
+
+            # Loggers are never garbage collected; drop this
+            # session's logger and its children.
+            logger_dict = (
+                logging.Logger.manager.loggerDict
+            )
+
+            for name in [
+                name
+                for name in list(
+                    logger_dict
+                )
+                if name == session_logger_name
+                or name.startswith(
+                    session_logger_name + "."
+                )
+            ]:
+                logger_dict.pop(
+                    name,
+                    None,
+                )
+
+        except Exception:
+            logger.warning(
+                "Could not release BirdNET session "
+                "resources for session %s.",
+                session_id,
+                exc_info=True,
+            )
 
     # ========================================================
     # Model loading

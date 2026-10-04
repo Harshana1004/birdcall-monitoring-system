@@ -244,6 +244,7 @@ if grep -rqs "127.0.0.1:8000" "${FRONTEND_DIR}/dist"; then
 fi
 
 # Caddy cannot read inside ${APP_HOME}; serve a copy from /var/www.
+mkdir -p "$(dirname "${WEB_ROOT}")"
 rm -rf "${WEB_ROOT}.new"
 cp -r "${FRONTEND_DIR}/dist" "${WEB_ROOT}.new"
 chmod -R a+rX "${WEB_ROOT}.new"
