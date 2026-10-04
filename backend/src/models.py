@@ -180,6 +180,13 @@ class Device(Base):
         nullable=True,
     )
 
+    # Province or district (ISO 3166-2:LK, e.g. "LK-2", "LK-21")
+    # for BirdNET's location filter when no coordinates are set.
+    region_code: Mapped[str | None] = mapped_column(
+        String(8),
+        nullable=True,
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -438,6 +445,15 @@ class Recording(Base):
         str | None
     ] = mapped_column(
         Text,
+        nullable=True,
+    )
+
+    # BirdNET location filter used for the stored detections, e.g.
+    # "Kandy District, week 37/48: 241 species"; NULL = unfiltered.
+    species_filter: Mapped[
+        str | None
+    ] = mapped_column(
+        String(200),
         nullable=True,
     )
 

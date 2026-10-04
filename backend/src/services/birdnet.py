@@ -9,6 +9,7 @@ from datetime import (
     time,
     timedelta,
 )
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
@@ -94,6 +95,7 @@ class BirdNetService:
     async def analyze(
         self,
         audio_path: Path,
+        species_list: Collection[str] | None = None,
     ) -> list[
         BirdNetPrediction
     ]:
@@ -101,7 +103,9 @@ class BirdNetService:
         Analyze one ROI audio file.
 
         This remains the normal inference method for an
-        individual ESP32-uploaded Recording.
+        individual ESP32-uploaded Recording. `species_list`
+        restricts predictions to those BirdNET labels (the
+        location filter); None allows every species.
         """
 
         resolved_path = (
@@ -118,6 +122,7 @@ class BirdNetService:
             return await asyncio.to_thread(
                 self._analyze_synchronously,
                 resolved_path,
+                species_list,
             )
 
         except ProcessingError:
@@ -144,6 +149,7 @@ class BirdNetService:
         audio_paths: list[
             Path
         ],
+        species_list: Collection[str] | None = None,
     ) -> dict[
         Path,
         list[
@@ -189,6 +195,7 @@ class BirdNetService:
             return await asyncio.to_thread(
                 self._analyze_batch_synchronously,
                 resolved_paths,
+                species_list,
             )
 
         except ProcessingError:
@@ -212,6 +219,7 @@ class BirdNetService:
     def _analyze_synchronously(
         self,
         audio_path: Path,
+        species_list: Collection[str] | None = None,
     ) -> list[
         BirdNetPrediction
     ]:
@@ -243,6 +251,12 @@ class BirdNetService:
                             settings
                             .birdnet_min_confidence
                         ),
+
+                        custom_species_list=(
+                            set(species_list)
+                            if species_list
+                            else None
+                        ),
                     )
                 )
 
@@ -267,6 +281,7 @@ class BirdNetService:
         audio_paths: list[
             Path
         ],
+        species_list: Collection[str] | None = None,
     ) -> dict[
         Path,
         list[
@@ -323,6 +338,12 @@ class BirdNetService:
                         prefetch_ratio=(
                             settings
                             .birdnet_prefetch_ratio
+                        ),
+
+                        custom_species_list=(
+                            set(species_list)
+                            if species_list
+                            else None
                         ),
                     )
                 )
@@ -484,6 +505,21 @@ class BirdNetService:
     # ========================================================
     # Model loading
     # ========================================================
+
+    @classmethod
+    def species_labels(
+        cls,
+    ) -> list[
+        str
+    ]:
+        """
+        Every label the acoustic model can predict
+        ("Scientific name_Common name").
+        """
+
+        return list(
+            cls._get_or_load_model().species_list
+        )
 
     @classmethod
     def _get_or_load_model(

@@ -410,6 +410,7 @@ async def timeline_for_recordings(
             roi_end_seconds=recording.roi_end_seconds,
             processing_status=recording.processing_status,
             processing_error=recording.processing_error,
+            species_filter=recording.species_filter,
             detections=by_recording[recording.id],
         )
         for recording in recordings

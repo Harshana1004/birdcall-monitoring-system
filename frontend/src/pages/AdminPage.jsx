@@ -13,6 +13,7 @@ import {
 } from "../api/devicesApi";
 import { useAuth } from "../auth/AuthContext";
 import { Alert, LoadingState, PageHeader } from "../components/ui";
+import RegionSelect from "../components/RegionSelect";
 import { useApi } from "../hooks/useApi";
 import { formatDateTime, formatNumber, formatRelative } from "../utils/format";
 
@@ -63,7 +64,7 @@ function ClaimCodeBox({ deviceCode, claimCode, onDismiss }) {
 // ------------------------------------------------------------
 
 function NewDeviceForm({ onCreated }) {
-  const [form, setForm] = useState({ deviceCode: "", name: "", description: "" });
+  const [form, setForm] = useState({ deviceCode: "", name: "", description: "", regionCode: "" });
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -79,9 +80,10 @@ function NewDeviceForm({ onCreated }) {
           deviceCode: form.deviceCode.trim(),
           name: form.name.trim(),
           description: form.description.trim(),
+          regionCode: form.regionCode,
         })
       );
-      setForm({ deviceCode: "", name: "", description: "" });
+      setForm({ deviceCode: "", name: "", description: "", regionCode: "" });
     } catch (requestError) {
       setError(errorMessage(requestError, "Could not register the device."));
     } finally {
@@ -111,6 +113,11 @@ function NewDeviceForm({ onCreated }) {
           <input id="new-description" className="input" maxLength={2000}
             value={form.description}
             onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        </div>
+        <div className="field">
+          <label htmlFor="new-region">Province or district (optional)</label>
+          <RegionSelect id="new-region" value={form.regionCode}
+            onChange={(regionCode) => setForm({ ...form, regionCode })} />
         </div>
       </div>
       <div>

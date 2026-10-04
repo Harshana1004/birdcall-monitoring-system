@@ -50,6 +50,7 @@ from src.api.schemas import (
     TimelineRecording,
 )
 from src.core.config import settings
+from src.core.regions import REGIONS, region_label
 from src.core.exceptions import (
     DeviceAlreadyClaimedError,
     DeviceNotFoundError,
@@ -91,6 +92,7 @@ OWNER_EDITABLE_FIELDS = {
     "description",
     "latitude",
     "longitude",
+    "region_code",
     "installed_at",
 }
 
@@ -163,6 +165,12 @@ async def build_device_responses(
                 description=device.description,
                 latitude=device.latitude,
                 longitude=device.longitude,
+                region_code=device.region_code,
+                region_name=(
+                    region_label(REGIONS[device.region_code])
+                    if device.region_code in REGIONS
+                    else None
+                ),
                 installed_at=device.installed_at,
                 is_active=device.is_active,
                 created_at=device.created_at,

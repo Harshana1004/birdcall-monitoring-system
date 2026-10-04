@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -191,6 +191,30 @@ class Settings(BaseSettings):
     )
 
     # --------------------------------------------------------
+    # BirdNET location filter (src/services/species_filter.py)
+    # --------------------------------------------------------
+
+    # Restrict predictions to species BirdNET's geo model expects
+    # at the recording's location.
+    birdnet_location_filter: bool = True
+
+    # Also restrict by the week of the recording (seasonal
+    # migrants); False uses an all-year list.
+    birdnet_location_use_week: bool = True
+
+    # Geo-model occurrence score a species needs to be included.
+    # Low, so rare residents are not dropped.
+    birdnet_location_min_confidence: float = Field(
+        default=0.03,
+        ge=0.0,
+        le=1.0,
+    )
+
+    # Region used when a recording has no coordinates and its
+    # device no coordinates or region; also for manual analyses.
+    birdnet_default_region: str = "LK"
+
+    # --------------------------------------------------------
     # BirdNET batch processing
     # --------------------------------------------------------
 
@@ -240,6 +264,26 @@ class Settings(BaseSettings):
     # --------------------------------------------------------
     # Derived settings
     # --------------------------------------------------------
+
+    @field_validator(
+        "birdnet_default_region"
+    )
+    @classmethod
+    def validate_default_region(
+        cls,
+        value: str,
+    ) -> str:
+        from src.core.regions import REGIONS
+
+        code = value.strip().upper()
+
+        if code not in REGIONS:
+            raise ValueError(
+                f"BIRDNET_DEFAULT_REGION '{value}' is not a known "
+                "region code (e.g. LK, LK-2, LK-21)."
+            )
+
+        return code
 
     @property
     def allowed_audio_extension_set(

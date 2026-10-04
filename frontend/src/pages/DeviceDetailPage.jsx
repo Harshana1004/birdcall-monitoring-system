@@ -22,6 +22,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import { ActivityChart, SpeciesBars } from "../components/charts";
 import RecordingAudio from "../components/RecordingAudio";
+import RegionSelect from "../components/RegionSelect";
 import {
   Alert,
   ConfidenceBadge,
@@ -64,6 +65,7 @@ function EditDeviceForm({ device, onSaved, onCancel }) {
   const [form, setForm] = useState({
     name: device.name,
     description: device.description ?? "",
+    regionCode: device.region_code ?? "",
     latitude: device.latitude ?? "",
     longitude: device.longitude ?? "",
   });
@@ -86,6 +88,7 @@ function EditDeviceForm({ device, onSaved, onCancel }) {
         await updateDevice(device.id, {
           name: form.name.trim(),
           description: form.description.trim() || null,
+          region_code: form.regionCode || null,
           latitude: form.latitude === "" ? null : Number(form.latitude),
           longitude: form.longitude === "" ? null : Number(form.longitude),
         })
@@ -119,14 +122,24 @@ function EditDeviceForm({ device, onSaved, onCancel }) {
             value={form.description} onChange={update("description")} />
         </div>
 
+        <div className="field">
+          <label htmlFor="device-region">Province or district</label>
+          <RegionSelect id="device-region" value={form.regionCode}
+            onChange={(regionCode) => setForm((current) => ({ ...current, regionCode }))} />
+          <span className="small faint">
+            BirdNET only considers species expected here in the week of each recording.
+            Exact coordinates below, if set, take priority.
+          </span>
+        </div>
+
         <div className="form-row">
           <div className="field">
-            <label htmlFor="device-lat">Latitude</label>
+            <label htmlFor="device-lat">Latitude (optional)</label>
             <input id="device-lat" className="input" type="number" step="any" min={-90} max={90}
               placeholder="6.4033" value={form.latitude} onChange={update("latitude")} />
           </div>
           <div className="field">
-            <label htmlFor="device-lon">Longitude</label>
+            <label htmlFor="device-lon">Longitude (optional)</label>
             <input id="device-lon" className="input" type="number" step="any" min={-180} max={180}
               placeholder="80.4561" value={form.longitude} onChange={update("longitude")} />
           </div>
@@ -190,6 +203,12 @@ function TimelineItem({ recording }) {
                 <ConfidenceBadge confidence={detection.confidence} />
               </div>
             ))}
+          </div>
+        )}
+
+        {recording.species_filter && (
+          <div className="small faint" title="BirdNET location filter used for these results">
+            Species filter: {recording.species_filter}
           </div>
         )}
 
@@ -395,7 +414,7 @@ function DeviceDetailPage() {
 
   return (
     <main className="page">
-      <Link to="/devices" className="small">← All devices</Link>
+      <Link to="/devices" className="small">All devices</Link>
 
       <PageHeader
         eyebrow={<span className="mono">{info.device_code}</span>}
@@ -423,10 +442,12 @@ function DeviceDetailPage() {
             : "No uploads yet"}
         </span>
         {!info.is_active && <span className="badge badge-warning">Inactive</span>}
-        {info.latitude != null && info.longitude != null && (
+        {info.latitude != null && info.longitude != null ? (
           <span className="faint">
             · {Number(info.latitude).toFixed(4)}, {Number(info.longitude).toFixed(4)}
           </span>
+        ) : (
+          <span className="faint">· {info.region_name ?? "Location not set (all of Sri Lanka)"}</span>
         )}
         {isAdmin && (
           <span className="faint">· Owner: {info.owner ? info.owner.email : "unclaimed"}</span>

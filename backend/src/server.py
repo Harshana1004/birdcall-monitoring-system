@@ -35,6 +35,9 @@ from src.api.accounts import (
 from src.api.dashboard import (
     router as dashboard_router,
 )
+from src.api.regions import (
+    router as regions_router,
+)
 
 
 from src.api.exception_handlers import (
@@ -193,6 +196,10 @@ app.include_router(
 
 app.include_router(
     analysis_router
+)
+
+app.include_router(
+    regions_router
 )
 
 # ============================================================

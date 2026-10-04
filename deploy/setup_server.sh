@@ -171,6 +171,14 @@ BIRDNET_MIN_CONFIDENCE=0.25
 BIRDNET_MAX_PREDICTIONS_PER_INTERVAL=10
 BIRDNET_MODEL_LOADING_TIMEOUT_SECONDS=120
 
+# Location filter: only species BirdNET's geo model expects at the
+# device's coordinates / district / province (else all of Sri Lanka)
+# in the week of the recording.
+BIRDNET_LOCATION_FILTER=true
+BIRDNET_LOCATION_USE_WEEK=true
+BIRDNET_LOCATION_MIN_CONFIDENCE=0.03
+BIRDNET_DEFAULT_REGION=LK
+
 DEFAULT_TIMEZONE=Asia/Colombo
 CORS_ORIGINS=["https://${DOMAIN}","http://localhost:5173"]
 

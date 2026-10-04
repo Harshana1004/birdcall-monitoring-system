@@ -46,6 +46,10 @@ from src.services.audio import (
     AudioStorage,
     StoredAudioFile,
 )
+from src.services.species_filter import (
+    location_species_filter,
+    resolve_location,
+)
 from src.services.birdnet import (
     BirdNetPrediction,
     BirdNetService,
@@ -702,12 +706,48 @@ class RecordingService:
             )
 
             # ------------------------------------------------
+            # Location filter (species expected where and when
+            # this was recorded)
+            # ------------------------------------------------
+
+            device = await self.session.get(
+                Device,
+                recording.device_id,
+            )
+
+            species_filter = await location_species_filter(
+                resolve_location(
+                    recording_latitude=recording.latitude,
+                    recording_longitude=recording.longitude,
+                    device_latitude=(
+                        device.latitude if device else None
+                    ),
+                    device_longitude=(
+                        device.longitude if device else None
+                    ),
+                    device_region_code=(
+                        device.region_code if device else None
+                    ),
+                ),
+                recording.recorded_at,
+            )
+
+            recording.species_filter = (
+                species_filter.description
+                if species_filter
+                else None
+            )
+
+            # ------------------------------------------------
             # BirdNET inference
             # ------------------------------------------------
 
             predictions = (
                 await self.birdnet_service.analyze(
-                    audio_path
+                    audio_path,
+                    species_filter.species
+                    if species_filter
+                    else None,
                 )
             )
 

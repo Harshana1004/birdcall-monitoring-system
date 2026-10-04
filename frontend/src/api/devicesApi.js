@@ -62,11 +62,12 @@ export async function releaseDevice(deviceId) {
 // ---- Admin ---------------------------------------------------------
 
 
-export async function createDevice({ deviceCode, name, description }) {
+export async function createDevice({ deviceCode, name, description, regionCode }) {
   const response = await api.post("/api/v1/devices", {
     device_code: deviceCode,
     name,
     description: description || null,
+    region_code: regionCode || null,
   });
 
   return response.data;
@@ -91,4 +92,22 @@ export async function assignDeviceOwner(deviceId, ownerEmail) {
 
 export async function deleteDevice(deviceId) {
   await api.delete(`/api/v1/devices/${deviceId}`);
+}
+
+
+let regionsPromise = null;
+
+/**
+ * Sri Lanka, its provinces and districts (each province followed by
+ * its districts). Static, so fetched once per page load.
+ */
+export function getRegions() {
+  if (!regionsPromise) {
+    regionsPromise = api.get("/api/v1/regions").then((response) => response.data);
+    regionsPromise.catch(() => {
+      regionsPromise = null;
+    });
+  }
+
+  return regionsPromise;
 }

@@ -13,6 +13,7 @@ from pydantic import (
 )
 
 from src.core.config import settings
+from src.core.regions import normalize_region_code
 from src.models import ProcessingStatus
 
 
@@ -222,7 +223,27 @@ class DeviceBase(BaseModel):
         datetime | None
     ) = None
 
+    # Province or district for BirdNET's location filter (see
+    # src/core/regions.py); used when latitude/longitude are unset.
+    region_code: str | None = Field(
+        default=None,
+        max_length=8,
+        examples=[
+            "LK-21"
+        ],
+    )
+
     is_active: bool = True
+
+    @field_validator(
+        "region_code"
+    )
+    @classmethod
+    def validate_region_code(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        return normalize_region_code(value)
 
     @field_validator(
         "device_code"
@@ -305,7 +326,27 @@ class DeviceUpdate(BaseModel):
         datetime | None
     ) = None
 
+    # Province or district for BirdNET's location filter (see
+    # src/core/regions.py); used when latitude/longitude are unset.
+    region_code: str | None = Field(
+        default=None,
+        max_length=8,
+        examples=[
+            "LK-21"
+        ],
+    )
+
     is_active: bool | None = None
+
+    @field_validator(
+        "region_code"
+    )
+    @classmethod
+    def validate_optional_region_code(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        return normalize_region_code(value)
 
     @field_validator(
         "device_code"
@@ -370,6 +411,9 @@ class DeviceResponse(
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+    # e.g. "Kandy District"; None when region_code is unset.
+    region_name: str | None = None
 
     owner: DeviceOwnerSummary | None = None
     claimed_at: datetime | None = None
@@ -653,6 +697,10 @@ class RecordingResponse(
     processing_error: (
         str | None
     )
+
+    species_filter: (
+        str | None
+    ) = None
 
 
 class RecordingSummaryResponse(
@@ -1067,6 +1115,7 @@ class TimelineRecording(BaseModel):
     roi_end_seconds: float | None
     processing_status: ProcessingStatus
     processing_error: str | None
+    species_filter: str | None = None
     detections: list[
         TimelineDetection
     ] = Field(

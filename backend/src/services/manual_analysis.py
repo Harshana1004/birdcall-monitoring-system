@@ -37,6 +37,10 @@ from src.services.audio_processing import (
     AudioProcessingService,
     ProcessedROI,
 )
+from src.services.species_filter import (
+    location_species_filter,
+    resolve_location,
+)
 from src.services.birdnet import (
     BirdNetService,
 )
@@ -885,11 +889,21 @@ class ManualAnalysisService:
             # ONE BirdNET CALL
             # ------------------------------------------------
 
+            # Manual uploads have no location or reliable date:
+            # default region (all of Sri Lanka), all year.
+            species_filter = await location_species_filter(
+                resolve_location(),
+                None,
+            )
+
             predictions_by_path = (
                 await self
                 .birdnet_service
                 .analyze_batch(
-                    audio_paths
+                    audio_paths,
+                    species_filter.species
+                    if species_filter
+                    else None,
                 )
             )
 
@@ -914,6 +928,12 @@ class ManualAnalysisService:
                     path_to_recording[
                         audio_path
                     ]
+                )
+
+                recording.species_filter = (
+                    species_filter.description
+                    if species_filter
+                    else None
                 )
 
                 predictions = (
