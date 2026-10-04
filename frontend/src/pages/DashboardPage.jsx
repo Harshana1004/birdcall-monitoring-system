@@ -31,7 +31,7 @@ function DashboardPage() {
     <main className="page">
       <PageHeader
         eyebrow={isAdmin ? "Overview · all devices" : "Overview"}
-        title={`Welcome back, ${name}`}
+        //title={`Welcome back, ${name}`}
         description="What your monitoring devices have been hearing."
         actions={
           <>
