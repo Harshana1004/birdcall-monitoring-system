@@ -431,6 +431,88 @@ bool wait_for_bench_request() {
   return false;
 }
 
+// 'l': UART link test without the network. With command echo on, the
+// module sends back every character it received, so each 200-character
+// test line that returns different from what was sent shows corruption
+// on the ESP32 <-> modem wires (either direction).
+void run_link_test() {
+  Serial.println("\nModem link test (echo of 50 x 200-char lines)...");
+  if (!app::modem_link().probe(10000)) {
+    Serial.println("Modem did not answer. Check power and wiring.\n");
+    return;
+  }
+  const unsigned baud = static_cast<unsigned>(Serial1.baudRate());
+
+  auto drain = [](uint32_t ms) {
+    const uint32_t start = millis();
+    while (millis() - start < ms) {
+      while (Serial1.available() > 0) Serial1.read();
+      delay(1);
+    }
+  };
+
+  Serial1.print("ATE1\r");
+  drain(300);
+
+  constexpr int kLines = 50;
+  constexpr size_t kLength = 200;
+  char sent[kLength + 1];
+  char echo[kLength + 64];
+  int bad_lines = 0;
+  unsigned bad_bytes = 0;
+  unsigned missing = 0;
+
+  for (int n = 0; n < kLines; ++n) {
+    // "AT+X" then a varying printable pattern; the module answers ERROR.
+    std::memcpy(sent, "AT+X", 4);
+    for (size_t i = 4; i < kLength; ++i) {
+      sent[i] = static_cast<char>('0' + (i * 7 + n * 13) % 75);
+    }
+    sent[kLength] = '\0';
+    drain(20);
+    Serial1.print(sent);
+    Serial1.print('\r');
+
+    size_t got = 0;
+    const uint32_t start = millis();
+    while (millis() - start < 1000 && got < sizeof(echo) - 1) {
+      if (Serial1.available() == 0) {
+        delay(1);
+        continue;
+      }
+      const char c = static_cast<char>(Serial1.read());
+      if (c == '\r' || c == '\n') {
+        if (got > 0) break;
+        continue;
+      }
+      echo[got++] = c;
+    }
+    echo[got] = '\0';
+
+    unsigned diff = 0;
+    for (size_t i = 0; i < kLength; ++i) {
+      if (i >= got || echo[i] != sent[i]) ++diff;
+    }
+    if (got < kLength) missing += kLength - got;
+    if (diff > 0 || got != kLength) {
+      ++bad_lines;
+      bad_bytes += diff;
+    }
+  }
+  drain(300);
+  Serial1.print("ATE0\r");
+  drain(300);
+
+  Serial.printf("Link test at %u baud: %d of %d lines corrupted, %u of %u "
+                "bytes wrong (%u missing).\n",
+                baud, bad_lines, kLines, bad_bytes,
+                static_cast<unsigned>(kLines * kLength), missing);
+  Serial.println(bad_lines == 0
+                     ? "Link OK.\n"
+                     : "Link FAULTY: check the TX/RX/GND wires and the "
+                       "modem's power supply.\n");
+}
+
 void setup_bench_mode() {
   frame_capacity = dsp::pipeline_frame_count(kTestCaptureSamples);
   capture = psram_alloc<float>(kTestCaptureSamples);
@@ -448,8 +530,8 @@ void setup_bench_mode() {
 
   Serial.println("Bench mode. Mic running. Press BOOT for a test capture; "
                  "send 'd' (dump WAV), 'u' (upload via bridge), 'g' (upload "
-                 "via 4G), 'n' (4G network check), 'r' (raw bits) or 'm' "
-                 "(modem AT passthrough).\n");
+                 "via 4G), 'n' (4G network check), 'l' (modem link test), "
+                 "'r' (raw bits) or 'm' (modem AT passthrough).\n");
 }
 
 void bench_loop() {
@@ -485,6 +567,10 @@ void bench_loop() {
     }
     if (command == 'm') {
       run_modem_passthrough();
+      return;
+    }
+    if (command == 'l') {
+      run_link_test();
       return;
     }
   }

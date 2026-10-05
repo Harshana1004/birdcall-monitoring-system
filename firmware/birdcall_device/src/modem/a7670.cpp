@@ -13,9 +13,11 @@ namespace {
 
 constexpr int kLink = 0;                 // socket link number used
 constexpr size_t kSendChunkBytes = 1024;  // per AT+CIPSEND
-// The module confirms a chunk well within a second once it has all the
-// bytes; longer means bytes were lost on the UART.
-constexpr uint32_t kSendTimeoutMs = 5000;
+// The module confirms a chunk only once it has gone out on the network:
+// after ~3 KB its send buffer is full and confirmations wait for the
+// server's TCP ACKs, which on a slow link take several seconds (5 s was
+// too short and broke uploads, 2026-10-05).
+constexpr uint32_t kSendTimeoutMs = 15000;
 // Above the factory rate, chunk data is written in slices with a short
 // gap so the module's UART receive buffer keeps up (no flow control).
 constexpr size_t kUartSliceBytes = 128;
@@ -80,9 +82,14 @@ A7670::A7670(HardwareSerial& port, Print* log) : port_(port), log_(log) {}
 // ------------------------------------------------------------
 
 void A7670::log_line(const char* direction, const char* text) {
-  if (log_ != nullptr) {
-    log_->printf("  %s %s\n", direction, text);
+  if (log_ == nullptr) {
+    return;
   }
+  if (quiet_ && direction[0] != '!' && !is_error_line(text) &&
+      !starts_with(text, "+IPCLOSE") && !starts_with(text, "+CIPCLOSE")) {
+    return;
+  }
+  log_->printf("  %s %s\n", direction, text);
 }
 
 void A7670::drain_input() {
@@ -232,68 +239,23 @@ bool A7670::wait_for_prompt(uint32_t timeout_ms) {
 // Module and network setup
 // ------------------------------------------------------------
 
-void A7670::recover_lost_send(size_t chunk_length) {
-  // The module is still in data mode waiting for the bytes it lost.
-  // Pad until it has a full chunk (the surplus reaches its AT parser as
-  // junk, which it ignores or answers with ERROR), then resync.
-  static const uint8_t kPad[64] = {};
-  for (size_t done = 0; done < chunk_length; done += sizeof(kPad)) {
-    const size_t n = chunk_length - done < sizeof(kPad)
-                         ? chunk_length - done
-                         : sizeof(kPad);
-    port_.write(kPad, n);
-    port_.flush();
-    delay(2);
-  }
-  char line[64];
-  wait_for_prefix("+CIPSEND:", 2000, line, sizeof(line));
-  delay(200);
-  drain_input();
-  port_.print("AT\r");
-  delay(200);
-  drain_input();
-}
-
-bool A7670::step_down_baud() {
-  const uint32_t current = port_.baudRate();
-  if (current <= MODEM_FACTORY_BAUD) {
-    return false;
-  }
-  uint32_t next = current / 2;
-  if (next < MODEM_FACTORY_BAUD) {
-    next = MODEM_FACTORY_BAUD;
-  }
-  char cmd[32];
-  std::snprintf(cmd, sizeof(cmd), "AT+IPR=%u", static_cast<unsigned>(next));
-  if (!command(cmd, 2000)) {
-    return false;
-  }
-  port_.flush();
-  delay(100);
-  port_.updateBaudRate(next);
-  delay(100);
-  drain_input();
-  target_baud_ = next;
-  char note[64];
-  std::snprintf(note, sizeof(note),
-                "data lost on the UART: stepped down to %u baud",
-                static_cast<unsigned>(next));
-  log_line("!", note);
-  return command("AT", 1000) || command("AT", 1000);
-}
-
 bool A7670::probe(uint32_t timeout_ms) {
   const uint32_t started = millis();
+  // The module keeps an AT+IPR rate until it loses power, so after an
+  // ESP32-only reflash it may still be at any earlier rate: try the
+  // target first, then the factory rate, then the other standard ones.
+  const uint32_t candidates[] = {target_baud_, MODEM_FACTORY_BAUD, 230400,
+                                 460800, 921600};
+  size_t next = 0;
   uint32_t baud = target_baud_;
   bool answered = false;
   while (!answered && millis() - started < timeout_ms) {
+    baud = candidates[next];
+    next = (next + 1) % (sizeof(candidates) / sizeof(candidates[0]));
     port_.updateBaudRate(baud);
     delay(20);
     drain_input();
     answered = command("AT", 1000);
-    if (!answered && target_baud_ != MODEM_FACTORY_BAUD) {
-      baud = baud == target_baud_ ? MODEM_FACTORY_BAUD : target_baud_;
-    }
   }
   if (!answered) {
     return false;
@@ -471,10 +433,14 @@ bool A7670::tcp_send(const uint8_t* data, size_t length) {
     port_.print(cmd);
     port_.print('\r');
     if (!wait_for_prompt(5000)) {
-      log_line("!", "no send prompt");
+      char note[64];
+      std::snprintf(note, sizeof(note), "no send prompt at socket byte %u",
+                    static_cast<unsigned>(bytes_sent_));
+      log_line("!", note);
       return false;
     }
-    if (port_.baudRate() > MODEM_FACTORY_BAUD) {
+    // baudRate() is the measured rate, a little off the nominal one.
+    if (port_.baudRate() > MODEM_FACTORY_BAUD + MODEM_FACTORY_BAUD / 10) {
       for (size_t done = 0; done < n; done += kUartSliceBytes) {
         const size_t slice =
             n - done < kUartSliceBytes ? n - done : kUartSliceBytes;
@@ -491,16 +457,30 @@ bool A7670::tcp_send(const uint8_t* data, size_t length) {
     unsigned requested = 0;
     unsigned confirmed = 0;
     int link = -1;
+    const uint32_t confirm_started = millis();
     if (!wait_for_prefix("+CIPSEND:", kSendTimeoutMs, line, sizeof(line))) {
-      lost_send_ = true;
-      recover_lost_send(n);
+      char note[72];
+      std::snprintf(note, sizeof(note),
+                    "chunk at socket byte %u not confirmed in time",
+                    static_cast<unsigned>(bytes_sent_));
+      log_line("!", note);
       return false;
     }
     if (std::sscanf(line, "+CIPSEND: %d,%u,%u", &link, &requested,
                     &confirmed) != 3 ||
         confirmed != n) {
-      log_line("!", "send not confirmed");
+      log_line("!", "send not confirmed:");
+      log_line("!", line);
       return false;
+    }
+    const uint32_t confirm_ms = millis() - confirm_started;
+    if (confirm_ms > 2000) {
+      char note[80];
+      std::snprintf(note, sizeof(note),
+                    "slow confirmation: chunk at socket byte %u took %u ms",
+                    static_cast<unsigned>(bytes_sent_),
+                    static_cast<unsigned>(confirm_ms));
+      log_line("!", note);
     }
 
     bytes_sent_ += n;
@@ -647,28 +627,21 @@ int A7670::post_roi(const char* host, uint16_t port, const char* path,
   }
 
   // Per-chunk AT traffic would flood the log; keep only the outcome.
-  Print* saved_log = log_;
   int status = kErrSend;
   if (send_request_head("POST", host, port, path, content_type,
                         counter.total, device_key)) {
-    log_ = nullptr;
+    quiet_ = true;
     ModemSink sink(*this);
     upload::write_roi_upload_body(fields, audio, sink);
     const bool sent = sink.finish();
-    log_ = saved_log;
+    quiet_ = false;
     if (sent) {
       status = read_http_status(30000);
     } else {
       log_line("!", "body send failed");
     }
   }
-  log_ = saved_log;
-
   tcp_close();
-  if (lost_send_) {
-    lost_send_ = false;
-    step_down_baud();
-  }
   return status;
 }
 
