@@ -6,7 +6,12 @@
 // Audio capture
 // ============================================================
 
-constexpr uint32_t SAMPLE_RATE_HZ = 16000;
+// 16000, 24000 or 32000 (high-pass tables in highpass_coeffs.h).
+// 32 kHz keeps BirdNET's input band up to 16 kHz: on the Western Amazon
+// evaluation (evaluation_ea/results/padding_aggregation/RESULTS.md) it
+// found 43 % more 5-minute species presences than 16 kHz at higher
+// precision, for twice the audio data per ROI (24 kHz: +27 %, 1.5x).
+constexpr uint32_t SAMPLE_RATE_HZ = 32000;
 
 // INMP441 I2S pins (ESP32-S3-DevKitC-1). Not strapping, USB-JTAG
 // (19/20), UART0 (43/44) or octal-PSRAM (35-37) pins.
@@ -30,7 +35,13 @@ constexpr float MIC_DC_BLOCK_CUTOFF_HZ = 20.0f;
 // UART1 to the modem. ESP TX -> modem RX, ESP RX <- modem TX.
 constexpr int MODEM_TX_PIN = 17;
 constexpr int MODEM_RX_PIN = 18;
-constexpr uint32_t MODEM_BAUD = 115200;  // A7670 factory default
+// The A7670 starts at its factory 115200 baud; A7670::probe() switches
+// it to MODEM_BAUD (AT+IPR) when it does not already answer there. At
+// 115200 the link moves ~11 KB/s, slower than 32 kHz PCM16 audio
+// (64 KB/s per second of ROI). If uploads show garbled AT replies on
+// long jumper wires, try 460800.
+constexpr uint32_t MODEM_FACTORY_BAUD = 115200;
+constexpr uint32_t MODEM_BAUD = 921600;
 
 // Backend reached over 4G (plain HTTP): the Azure VM "birdcall-server"
 // (static public IP; deployed with deploy/setup_server.sh).
@@ -81,7 +92,12 @@ constexpr float ROI_MIN_PEAK_FACTOR = 4.0f;
 constexpr float ROI_MIN_PEAK_DBFS = -80.0f;
 
 // _filter_and_pad_regions
-constexpr float ROI_MIN_DURATION_SECONDS = 0.30f;
+// Regions shorter than this (before padding) are dropped. 0.5 s
+// (Python reference: 0.3 s): on the balcony recordings it removed 36 %
+// of the snippets BirdNET found nothing in and kept every snippet with
+// a confident bird; on the Western Amazon evaluation it cut uploads by
+// 15 % for a 2 % relative loss of recall.
+constexpr float ROI_MIN_DURATION_SECONDS = 0.50f;
 constexpr float ROI_MERGE_GAP_SECONDS    = 0.50f;
 constexpr float ROI_PADDING_SECONDS      = 0.25f;
 
@@ -114,9 +130,10 @@ constexpr uint32_t CAPTURE_WINDOW_SECONDS = 10;
 constexpr uint32_t SESSION_MAX_SECONDS = 3600;
 
 // Upload queue in PSRAM: ROI audio waiting for the network, as PCM16.
-// 4 MB = ~131 s of ROI audio; ROIs that do not fit are dropped and
-// counted.
-constexpr size_t UPLOAD_QUEUE_POOL_BYTES = 4 * 1024 * 1024;
+// 3 MB = ~49 s of ROI audio at 32 kHz (~98 s at 16 kHz); ROIs that do
+// not fit are dropped and counted. 3 MB (not 4) so the 32 kHz capture
+// windows still leave ~1 MB of PSRAM free.
+constexpr size_t UPLOAD_QUEUE_POOL_BYTES = 3 * 1024 * 1024;
 constexpr size_t UPLOAD_QUEUE_MAX_ENTRIES = 256;
 
 // Retry back-off for uploads that fail on the network side.
@@ -135,7 +152,7 @@ constexpr bool UPLOAD_VIA_MODEM = true;
 
 // Sent as edge_processing_version with every ROI. Bump whenever
 // the on-device processing changes in a way that affects output.
-constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.2.0";
+constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.4.0";
 
 // UUID of this device's row in the backend's devices table
 // (POST /api/v1/devices returns it). Not secret. This is ESP32-DEV-01

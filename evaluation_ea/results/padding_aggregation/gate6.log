@@ -1,0 +1,32 @@
+19:48:44 gate x6 [1/21] clips written
+19:48:54 gate x6 [2/21] clips written
+19:49:03 gate x6 [3/21] clips written
+19:49:14 gate x6 [4/21] clips written
+19:49:21 gate x6 [5/21] clips written
+19:49:29 gate x6 [6/21] clips written
+19:49:36 gate x6 [7/21] clips written
+19:49:46 gate x6 [8/21] clips written
+19:49:54 gate x6 [9/21] clips written
+19:50:03 gate x6 [10/21] clips written
+19:50:11 gate x6 [11/21] clips written
+19:50:27 gate x6 [12/21] clips written
+19:50:38 gate x6 [13/21] clips written
+19:50:48 gate x6 [14/21] clips written
+19:50:57 gate x6 [15/21] clips written
+19:51:06 gate x6 [16/21] clips written
+19:51:16 gate x6 [17/21] clips written
+19:51:26 gate x6 [18/21] clips written
+19:51:34 gate x6 [19/21] clips written
+19:51:43 gate x6 [20/21] clips written
+19:51:52 gate x6 [21/21] clips written
+19:51:52 gate x6: BirdNET on 1572 unfiltered clips ...
+ROI audio per hour: x8 1.6 min, x6 2.7 min, x4 5.8 min, x2 12.0 min
+ gate      selection  predictions  species_5min_precision  species_5min_recall  species_5min_f1  species_recording_precision  species_recording_recall  species_recording_f1
+    2 threshold 0.15        10336                   0.632                0.261            0.369                        0.583                     0.333                 0.424
+    4 threshold 0.15         5415                   0.670                0.160            0.259                        0.626                     0.227                 0.333
+    6 threshold 0.15         2440                   0.676                0.090            0.159                        0.641                     0.149                 0.242
+    8 threshold 0.15         1404                   0.640                0.052            0.096                        0.633                     0.103                 0.176
+    2 threshold 0.25         6830                   0.748                0.214            0.332                        0.695                     0.262                 0.381
+    4 threshold 0.25         3688                   0.757                0.128            0.218                        0.711                     0.177                 0.284
+    6 threshold 0.25         1727                   0.742                0.068            0.125                        0.718                     0.119                 0.204
+    8 threshold 0.25         1014                   0.712                0.039            0.074                        0.724                     0.080                 0.144

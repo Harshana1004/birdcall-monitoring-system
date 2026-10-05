@@ -14,7 +14,10 @@ constexpr i2s_port_t kPort = I2S_NUM_0;
 
 // DMA: 16 x 256 frames = 256 ms of buffering at 16 kHz, so a reader
 // briefly delayed by another task does not lose audio.
-constexpr int kDmaBufferCount = 16;
+// 16 x 256 frames = 256 ms at 16 kHz; scaled with the sample rate so
+// the DMA ring always holds at least ~256 ms (32 at 24 and 32 kHz).
+constexpr int kDmaBufferCount =
+    16 * static_cast<int>((SAMPLE_RATE_HZ + 15999) / 16000);
 constexpr int kDmaBufferFrames = 256;
 
 // Driver events; I2S_EVENT_RX_Q_OVF means DMA overwrote audio that

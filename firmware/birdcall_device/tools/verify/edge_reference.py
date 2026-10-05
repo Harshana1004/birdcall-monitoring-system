@@ -31,7 +31,6 @@ from scipy.signal import butter, sosfilt
 from src.services.audio_processing import AudioProcessingService, RegionOfInterest
 
 FIRMWARE = Path(__file__).resolve().parents[2]
-SAMPLE_RATE = 16000
 
 
 def _config_float(name: str) -> float:
@@ -44,6 +43,8 @@ def _config_float(name: str) -> float:
 
 MIN_PEAK_FACTOR = _config_float("ROI_MIN_PEAK_FACTOR")
 MIN_PEAK_DBFS = _config_float("ROI_MIN_PEAK_DBFS")
+MIN_DURATION = _config_float("ROI_MIN_DURATION_SECONDS")
+SAMPLE_RATE = int(_config_float("SAMPLE_RATE_HZ"))
 
 
 @dataclass
@@ -66,7 +67,7 @@ def _to_dbfs(energy: float, band_peak: float) -> float:
 
 
 def edge_pipeline(audio: np.ndarray, sr: int = SAMPLE_RATE) -> EdgeResult:
-    service = AudioProcessingService()
+    service = AudioProcessingService(sample_rate=sr, roi_min_duration=MIN_DURATION)
     result = EdgeResult()
 
     sos = butter(4, 1000.0 / (sr / 2), btype="highpass", output="sos")

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import io
+from math import gcd
 import json
 import subprocess
 import sys
@@ -37,6 +38,7 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+from scipy.signal import resample_poly
 
 HERE = Path(__file__).resolve().parent
 FIRMWARE = HERE.parents[1]
@@ -45,7 +47,7 @@ sys.path.insert(0, str(REPO / "backend"))
 
 from src.api.schemas import RecordingUploadMetadata  # noqa: E402
 from src.core.config import settings  # noqa: E402
-from edge_reference import edge_pipeline  # noqa: E402
+from edge_reference import SAMPLE_RATE, edge_pipeline  # noqa: E402
 
 EXPECTED_FIELDS = [
     "device_id", "client_upload_id", "capture_session_id",
@@ -79,7 +81,13 @@ def main() -> int:
     args = parser.parse_args()
 
     audio, sr = sf.read(args.wav, dtype="float32")
-    assert sr == 16000 and audio.ndim == 1, "expected mono 16 kHz WAV"
+    assert audio.ndim == 1, "expected a mono WAV"
+    if sr != SAMPLE_RATE:
+        # Older bench captures are 16 kHz; feed both sides the
+        # firmware's rate.
+        g = gcd(sr, SAMPLE_RATE)
+        audio = resample_poly(audio, SAMPLE_RATE // g, sr // g).astype(np.float32)
+        sr = SAMPLE_RATE
     reference = reference_rois(audio.copy(), sr)
 
     failures: list[str] = []
@@ -165,7 +173,7 @@ def main() -> int:
         check(headers.get("Content-Type") == "audio/wav", "audio part content type")
         info = sf.info(io.BytesIO(wav_bytes))
         check(info.format == "WAV" and info.subtype == "PCM_16"
-              and info.channels == 1 and info.samplerate == 16000,
+              and info.channels == 1 and info.samplerate == SAMPLE_RATE,
               f"WAV {info.format}/{info.subtype}, {info.channels} ch, {info.samplerate} Hz")
 
         duration = info.frames / info.samplerate

@@ -154,6 +154,76 @@ of that gain. Detection should keep using the 1 kHz-filtered signal (that
 is what stops hum and wind creating ROIs), but the upload should be the
 unfiltered (DC-blocked) audio.
 
+## Gate x6 and minimum ROI duration (unfiltered upload)
+
+`run_gate6_eval.py`. Location filter on, threshold 0.15.
+
+| Gate | ROI audio / hour | Species/5 min P | R | Species/recording P | R |
+|---|---|---|---|---|---|
+| x2 | 12.0 min | 0.632 | 0.261 | 0.583 | 0.333 |
+| x4 | 5.8 min | 0.670 | 0.160 | 0.626 | 0.227 |
+| x6 | 2.7 min | 0.676 | 0.090 | 0.641 | 0.149 |
+| x8 | 1.6 min | 0.640 | 0.052 | 0.633 | 0.103 |
+
+Precision is flat across gates. The gate trades upload volume for recall;
+it does not select better snippets.
+
+The device's own balcony uploads (1.2.0, x4, 688 snippets at dusk) show
+the same. A simulated x6 gate would have dropped 24 % of the snippets
+BirdNET found nothing in, but also 26 % of those with a confident bird.
+
+A longer minimum region does select:
+
+| Data | Change | Effect |
+|---|---|---|
+| Balcony | 0.5 s instead of 0.3 s | drops 36 % of empty snippets, keeps all 19 with a confident bird (loses 10 of 67 weak) |
+| Amazon, x4 | snippet ≥ 1.0 s (≈ region ≥ 0.5 s) | 15 % fewer ROIs, recall 0.160 → 0.157, precision 0.670 → 0.687 |
+
+Two other cheap ROI features did not separate empty from bird snippets on
+the balcony data:
+
+- spectral flatness (empty snippets are as tonal as bird ones);
+- energy above vs. below 1 kHz (the birds there at dusk are mostly
+  low-pitched pigeons, coucals and owls).
+
+Firmware `esp32-dsp-1.3.0` sets `ROI_MIN_DURATION_SECONDS = 0.5`.
+
+## Sample rate (esp32-dsp-1.3.0 settings: x4 gate, 0.5 s minimum, unfiltered upload)
+
+`run_sample_rate_eval.py`. The recordings are 32 kHz; 16 and 24 kHz are
+resampled. Location filter on, threshold 0.15.
+
+| Rate | ROIs / h | WAV audio / h | Species/5 min P | R | F1 | Species/recording P | R | F1 |
+|---|---|---|---|---|---|---|---|---|
+| 16 kHz | 147 | 10.5 MB | 0.685 | 0.157 | 0.256 | 0.653 | 0.224 | 0.334 |
+| 24 kHz | 148 | 15.7 MB | 0.713 | 0.200 | 0.313 | 0.716 | 0.275 | 0.397 |
+| 32 kHz | 148 | 20.9 MB | 0.726 | **0.225** | **0.343** | 0.750 | **0.315** | **0.444** |
+
+The same ROIs are found at every rate; the gain comes from BirdNET hearing
+up to 12/16 kHz instead of 8 kHz. Recall rises 27 % (24 kHz) and 43 %
+(32 kHz), and precision rises too. Firmware `esp32-dsp-1.4.0` uses 32 kHz
+and raises the modem UART from 115200 to 921600 baud.
+
+### Estimated 4G data usage
+
+Each upload adds about 4.5 KB of protocol overhead to the audio:
+
+- multipart fields + 714 B metadata ≈ 2.1 KB;
+- request head 305 B;
+- server response ≈ 1.6 KB;
+- TCP setup/ACKs ≈ 0.5 KB;
+- plus ~4 % TCP/IP framing on the payload.
+
+| Rate | Busy forest (Amazon dawn: 147 uploads, 5.5 min audio / h) | Busy road walk (316 uploads, 12.8 min / h) | 24 h like the road walk | 30 days |
+|---|---|---|---|---|
+| 16 kHz | 11.6 MB/h | 26.9 MB/h | 0.65 GB | 19 GB |
+| 24 kHz | 17.0 MB/h | 39.7 MB/h | 0.95 GB | 29 GB |
+| 32 kHz | 22.4 MB/h | 52.5 MB/h | 1.26 GB | 38 GB |
+
+The road walk (device in a bag, traffic and people) is a worst case. A
+field site is mostly quiet between dawn and dusk choruses, so real daily
+use should be well below "24 h like the road walk".
+
 ## Concatenating snippets before BirdNET
 
 `run_concat_eval.py` joins consecutive ROIs of a recording whose gaps are

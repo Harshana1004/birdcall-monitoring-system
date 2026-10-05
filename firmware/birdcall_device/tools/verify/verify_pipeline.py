@@ -29,9 +29,8 @@ REPO = FIRMWARE.parents[1]
 
 sys.path.insert(0, str(REPO / "backend"))
 
-from edge_reference import edge_pipeline  # noqa: E402
+from edge_reference import SAMPLE_RATE, edge_pipeline  # noqa: E402
 
-SAMPLE_RATE = 16000
 
 
 def make_signal() -> np.ndarray:
@@ -59,9 +58,9 @@ def make_signal() -> np.ndarray:
     audio[int(5.0 * SAMPLE_RATE):int(8.8 * SAMPLE_RATE)] += (
         0.05 * np.sin(2 * np.pi * 300 * t[int(5.0 * SAMPLE_RATE):int(8.8 * SAMPLE_RATE)])
     )                                    # low-frequency hum for the HPF
-    burst(9.6, 0.4, 3000, 3200, 0.012)  # ~4x the median: above 2x,
+    burst(9.6, 0.4, 3000, 3200, 0.028)  # ~3x the median: above 2x,
                                          # rejected by the peak gate
-    burst(11.7, 0.3, 3500, 3600, 0.5)   # clipped at end boundary
+    burst(11.4, 0.6, 3500, 3600, 0.5)   # clipped at end boundary
     return audio.astype(np.float32)
 
 

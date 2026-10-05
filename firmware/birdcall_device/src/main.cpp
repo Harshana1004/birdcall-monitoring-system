@@ -364,9 +364,13 @@ void run_test_capture(CaptureMode mode) {
 // Line-based so the PlatformIO monitor works as-is.
 void run_modem_passthrough() {
   Serial.println("\nModem passthrough. Type AT commands; \"exit\" to leave.");
+  // Settle the baud rate first (switches a factory-rate module).
+  if (!app::modem_link().probe(10000)) {
+    Serial.println("(modem did not answer at either baud rate)");
+  }
   Serial.printf("(UART1 %u baud, ESP TX=GPIO%d -> modem RX, "
                 "ESP RX=GPIO%d <- modem TX)\n",
-                static_cast<unsigned>(MODEM_BAUD), MODEM_TX_PIN,
+                static_cast<unsigned>(Serial1.baudRate()), MODEM_TX_PIN,
                 MODEM_RX_PIN);
 
   char line[256];
@@ -535,6 +539,9 @@ void setup() {
                 static_cast<unsigned>(ESP.getFreePsram()));
 
   pinMode(kBootButtonPin, INPUT_PULLUP);
+  // Larger RX buffer for the faster modem link; probe() settles the
+  // actual rate (MODEM_BAUD or the factory MODEM_FACTORY_BAUD).
+  Serial1.setRxBufferSize(2048);
   Serial1.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
 
   g_bench_mode = wait_for_bench_request();
