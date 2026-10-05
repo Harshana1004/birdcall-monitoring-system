@@ -40,15 +40,20 @@ PipelineResult process_capture(
   result.duration_seconds =
       static_cast<float>(audio_length) / SAMPLE_RATE_HZ;
 
-  float input_peak = 0.0f;
-  for (size_t i = 0; i < audio_length; ++i) {
-    input_peak = std::max(input_peak, std::fabs(audio[i]));
+  if (workspace.roi_arena_capacity < audio_length) {
+    result.status = PipelineStatus::kArenaTooSmall;
+    return result;
   }
-  result.input_peak = input_peak;
 
-  // Detect in the band the ROIs are uploaded in (edge deviation).
-  apply_highpass_filter(audio, audio_length);
-  result.band_peak = normalize_audio_in_place(audio, audio_length);
+  // Detection runs on a high-passed copy (edge deviation); the
+  // arena is free until ROIs are extracted, so it holds the copy.
+  float* detection = workspace.roi_arena;
+  std::copy(audio, audio + audio_length, detection);
+  apply_highpass_filter(detection, audio_length);
+  result.band_peak = normalize_audio_in_place(detection, audio_length);
+
+  // The upload is the unfiltered capture, peak-normalized.
+  result.input_peak = normalize_audio_in_place(audio, audio_length);
 
   const size_t frame_count = pipeline_frame_count(audio_length);
   result.frame_count = frame_count;
@@ -63,7 +68,7 @@ PipelineResult process_capture(
     return result;
   }
 
-  compute_short_time_energy(audio, audio_length, FRAME_LENGTH_SAMPLES,
+  compute_short_time_energy(detection, audio_length, FRAME_LENGTH_SAMPLES,
                             HOP_LENGTH_SAMPLES, workspace.energy_scratch,
                             workspace.frame_capacity);
 
@@ -108,6 +113,7 @@ PipelineResult process_capture(
       &result.rejected_region_count);
   result.detected_region_count = region_count;
 
+  // The detection copy is no longer needed; ROIs overwrite it.
   size_t arena_used = 0;
 
   for (size_t i = 0; i < region_count; ++i) {

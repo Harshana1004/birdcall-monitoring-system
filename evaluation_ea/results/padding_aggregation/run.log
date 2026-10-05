@@ -1,0 +1,39 @@
+05:37:43 21 recordings -> C:\UoM\Semester 5\Embedded Systems Project\ICE_Project\birdcall-monitoring-system\evaluation_ea\results\padding_aggregation
+05:37:43 gate x8: 927 ROIs (79% shorter than 3 s)
+05:37:43 gate x4: 3533 ROIs (81% shorter than 3 s)
+05:37:43 gate x4: BirdNET on 3533 'context' clips ...
+05:40:52   done in 188 s, 8469 predictions
+05:41:12 gate x2 [1/21] PER_001_S01_20190116_100007Z.flac: 360 windows, 534 ROIs, 0 quiet regions rejected
+05:41:28 gate x2 [2/21] PER_002_S02_20190116_100007Z.flac: 360 windows, 340 ROIs, 0 quiet regions rejected
+05:41:50 gate x2 [3/21] PER_003_S04_20190116_100007Z.flac: 360 windows, 522 ROIs, 0 quiet regions rejected
+05:42:30 gate x2 [4/21] PER_004_S05_20190116_100007Z.flac: 360 windows, 917 ROIs, 0 quiet regions rejected
+05:43:01 gate x2 [5/21] PER_005_S06_20190116_100007Z.flac: 360 windows, 731 ROIs, 0 quiet regions rejected
+05:43:11 gate x2 [6/21] PER_006_S08_20190116_100007Z.flac: 360 windows, 93 ROIs, 0 quiet regions rejected
+05:43:18 gate x2 [7/21] PER_007_S10_20190116_100007Z.flac: 360 windows, 30 ROIs, 0 quiet regions rejected
+05:43:47 gate x2 [8/21] PER_008_S01_20190120_100007Z.flac: 360 windows, 554 ROIs, 0 quiet regions rejected
+05:44:12 gate x2 [9/21] PER_009_S02_20190120_100007Z.flac: 360 windows, 496 ROIs, 0 quiet regions rejected
+05:44:33 gate x2 [10/21] PER_010_S04_20190120_100007Z.flac: 360 windows, 413 ROIs, 0 quiet regions rejected
+05:45:11 gate x2 [11/21] PER_011_S05_20190120_100007Z.flac: 360 windows, 796 ROIs, 0 quiet regions rejected
+05:45:45 gate x2 [12/21] PER_012_S06_20190120_100007Z.flac: 360 windows, 706 ROIs, 0 quiet regions rejected
+05:45:59 gate x2 [13/21] PER_013_S08_20190120_100007Z.flac: 360 windows, 195 ROIs, 0 quiet regions rejected
+05:46:07 gate x2 [14/21] PER_014_S10_20190120_100007Z.flac: 360 windows, 31 ROIs, 0 quiet regions rejected
+05:46:20 gate x2 [15/21] PER_015_S01_20190131_100007Z.flac: 360 windows, 170 ROIs, 0 quiet regions rejected
+05:46:45 gate x2 [16/21] PER_016_S02_20190131_100007Z.flac: 360 windows, 450 ROIs, 0 quiet regions rejected
+05:47:11 gate x2 [17/21] PER_017_S04_20190131_100007Z.flac: 360 windows, 471 ROIs, 0 quiet regions rejected
+05:47:43 gate x2 [18/21] PER_018_S05_20190131_100007Z.flac: 360 windows, 636 ROIs, 0 quiet regions rejected
+05:47:52 gate x2 [19/21] PER_019_S06_20190131_100007Z.flac: 360 windows, 62 ROIs, 0 quiet regions rejected
+05:48:03 gate x2 [20/21] PER_020_S08_20190131_100007Z.flac: 360 windows, 134 ROIs, 0 quiet regions rejected
+05:48:14 gate x2 [21/21] PER_021_S10_20190131_100007Z.flac: 360 windows, 109 ROIs, 0 quiet regions rejected
+05:48:14 gate x2: 8390 ROIs (87% shorter than 3 s)
+05:48:14 gate x2: BirdNET on 8390 'silence' clips ...
+05:55:13   done in 419 s, 15958 predictions
+05:55:15 gate x2: BirdNET on 8390 'noise' clips ...
+06:02:08   done in 413 s, 12790 predictions
+06:02:10 gate x2: BirdNET on 8390 'repeat' clips ...
+06:09:04   done in 414 s, 19541 predictions
+06:09:05 gate x2: BirdNET on 8390 'context' clips ...
+06:16:02   done in 417 s, 19171 predictions
+06:16:04 BirdNET on 21 raw recordings ...
+06:33:53   done in 1069 s, 101024 predictions
+06:33:58 location filter: 1068-1068 labels per recording
+06:38:06 analysed raw (gate -)

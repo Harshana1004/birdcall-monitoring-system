@@ -1,0 +1,58 @@
+09:07:02 clips for PER_001_S01_20190116_100007Z.flac
+09:07:08 clips for PER_002_S02_20190116_100007Z.flac
+09:07:16 clips for PER_003_S04_20190116_100007Z.flac
+09:07:25 clips for PER_004_S05_20190116_100007Z.flac
+09:07:40 clips for PER_005_S06_20190116_100007Z.flac
+09:07:46 clips for PER_006_S08_20190116_100007Z.flac
+09:07:51 clips for PER_007_S10_20190116_100007Z.flac
+09:08:04 clips for PER_008_S01_20190120_100007Z.flac
+09:08:13 clips for PER_009_S02_20190120_100007Z.flac
+09:08:20 clips for PER_010_S04_20190120_100007Z.flac
+09:08:32 clips for PER_011_S05_20190120_100007Z.flac
+09:08:43 clips for PER_012_S06_20190120_100007Z.flac
+09:08:50 clips for PER_013_S08_20190120_100007Z.flac
+09:08:59 clips for PER_014_S10_20190120_100007Z.flac
+09:09:09 clips for PER_015_S01_20190131_100007Z.flac
+09:09:23 clips for PER_016_S02_20190131_100007Z.flac
+09:09:39 clips for PER_017_S04_20190131_100007Z.flac
+09:09:54 clips for PER_018_S05_20190131_100007Z.flac
+09:10:02 clips for PER_019_S06_20190131_100007Z.flac
+09:10:10 clips for PER_020_S08_20190131_100007Z.flac
+09:10:20 clips for PER_021_S10_20190131_100007Z.flac
+09:10:20 BirdNET on orig32
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171624.485876   23028 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171626.972571   21992 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171628.361826   23028 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171629.525996   21992 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+09:13:35 BirdNET on 16k
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171818.817444   20128 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171821.058884   20128 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171821.106619   17444 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791171823.484444   17444 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+09:17:30 BirdNET on 16k_hpf
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791172053.410693   31444 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791172055.846890   31444 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791172055.900530   30456 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791172058.975613   30456 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791172330.487761    5200 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1791172340.211729    5200 port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+3000 sampled clips; 4096 annotated events inside them, 2672 of those detected by raw BirdNET on the full recording
+   step  clip_hits_of_raw_detected  clip_hits_of_all_inside
+ orig32                      76.3%                    51.8%
+    16k                      53.5%                    36.7%
+16k_hpf                      22.0%                    14.7%
+ device                      21.3%                    14.3%

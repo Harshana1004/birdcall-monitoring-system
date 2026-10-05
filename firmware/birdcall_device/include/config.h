@@ -66,14 +66,18 @@ constexpr float ROI_THRESHOLD_FACTOR = 2.0f;
 // Peak gate (edge-only; not in the Python reference). Energy is
 // measured after the 1 kHz high-pass, and a merged region is kept
 // only if its loudest smoothed frame reaches BOTH:
-//   - ROI_MIN_PEAK_FACTOR x the window's median (8 = ~9 dB above
-//     the noise; 2 x median alone triggers on noise fluctuations),
+//   - ROI_MIN_PEAK_FACTOR x the window's median (4 = ~6 dB above
+//     the noise; 2 = no gate beyond the 2 x median threshold, which
+//     alone triggers on noise fluctuations in quiet places; 8 was
+//     too strict for busy soundscapes: on the Western Amazon
+//     evaluation it kept 1.6 min of audio per hour vs 5.8 at 4 and
+//     12 at 2, with recall falling accordingly),
 //   - ROI_MIN_PEAK_DBFS, an absolute level before normalization
 //     (mean-square energy, full scale = 1.0, so a full-scale sine is
 //     -3 dBFS), so near-silent windows produce nothing.
 // Tune both from the "levels" part of the 60 s status line: set the
 // floor a few dB above the noise-floor range you see with no birds.
-constexpr float ROI_MIN_PEAK_FACTOR = 8.0f;
+constexpr float ROI_MIN_PEAK_FACTOR = 4.0f;
 constexpr float ROI_MIN_PEAK_DBFS = -80.0f;
 
 // _filter_and_pad_regions
@@ -82,7 +86,7 @@ constexpr float ROI_MERGE_GAP_SECONDS    = 0.50f;
 constexpr float ROI_PADDING_SECONDS      = 0.25f;
 
 // ============================================================
-// High-pass filter
+// High-pass filter (ROI detection only; uploads are unfiltered)
 // ============================================================
 
 constexpr float HIGHPASS_CUTOFF_HZ = 1000.0f;
@@ -131,7 +135,7 @@ constexpr bool UPLOAD_VIA_MODEM = true;
 
 // Sent as edge_processing_version with every ROI. Bump whenever
 // the on-device processing changes in a way that affects output.
-constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.1.0";
+constexpr const char* EDGE_PROCESSING_VERSION = "esp32-dsp-1.2.0";
 
 // UUID of this device's row in the backend's devices table
 // (POST /api/v1/devices returns it). Not secret. This is ESP32-DEV-01

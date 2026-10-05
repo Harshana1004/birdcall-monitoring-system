@@ -167,7 +167,10 @@ ALLOWED_AUDIO_EXTENSIONS=wav
 BIRDNET_MODEL_NAME=BirdNET
 BIRDNET_MODEL_VERSION=2.4
 BIRDNET_BACKEND=tf
-BIRDNET_MIN_CONFIDENCE=0.25
+# 0.15: best F1 for device snippets on the Western Amazon evaluation
+# (evaluation_ea/results/padding_aggregation/RESULTS.md); the location
+# filter removes out-of-range species first.
+BIRDNET_MIN_CONFIDENCE=0.15
 BIRDNET_MAX_PREDICTIONS_PER_INTERVAL=10
 BIRDNET_MODEL_LOADING_TIMEOUT_SECONDS=120
 

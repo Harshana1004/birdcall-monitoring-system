@@ -3,13 +3,14 @@ Python reference for dsp::process_capture(): the backend's
 AudioProcessingService steps, with the documented edge deviations
 applied (see src/dsp/dsp_pipeline.h):
 
-  * causal 1 kHz sosfilt over the whole capture, before detection
-  * peak normalize the filtered capture
+  * detection on a copy: causal 1 kHz sosfilt over the whole capture,
+    then peak normalize
+  * upload: the unfiltered capture, peak normalized
   * STE -> smoothing -> 2 x median threshold (backend code)
   * raw regions -> merge (backend rules, tracking each region's
     loudest smoothed frame) -> peak gate -> min duration + padding
     (backend code)
-  * exact ROI extraction from the filtered capture, no 3 s padding
+  * exact ROI extraction from the unfiltered capture, no 3 s padding
 
 The gate constants are read from include/config.h so the reference
 follows the firmware's settings.
@@ -51,10 +52,11 @@ class EdgeResult:
     threshold: float = 0.0
     peak_threshold: float = float("inf")
     band_peak: float = 0.0
+    input_peak: float = 0.0
     noise_floor_dbfs: float = -150.0
     loudest_dbfs: float = -150.0
     rejected: int = 0
-    # (region index, start s, end s, filtered normalized samples)
+    # (region index, start s, end s, unfiltered normalized samples)
     rois: list[tuple[int, float, float, np.ndarray]] = field(default_factory=list)
 
 
@@ -71,6 +73,10 @@ def edge_pipeline(audio: np.ndarray, sr: int = SAMPLE_RATE) -> EdgeResult:
     filtered = sosfilt(sos, np.asarray(audio, dtype=np.float32)).astype(np.float32)
     result.band_peak = float(np.max(np.abs(filtered))) if filtered.size else 0.0
     normalized = service.normalize_audio(filtered)
+
+    raw = np.asarray(audio, dtype=np.float32)
+    result.input_peak = float(np.max(np.abs(raw))) if raw.size else 0.0
+    upload = service.normalize_audio(raw)
 
     energy = service.compute_short_time_energy(normalized)
     smoothed = service.smooth_energy(energy)
@@ -122,9 +128,9 @@ def edge_pipeline(audio: np.ndarray, sr: int = SAMPLE_RATE) -> EdgeResult:
 
     for index, region in enumerate(regions):
         s = max(0, int(round(region.start_time * sr)))
-        e = min(len(normalized), int(round(region.end_time * sr)))
+        e = min(len(upload), int(round(region.end_time * sr)))
         if e <= s:
             continue
         result.rois.append((index, region.start_time, region.end_time,
-                            np.asarray(normalized[s:e], dtype=np.float32)))
+                            np.asarray(upload[s:e], dtype=np.float32)))
     return result

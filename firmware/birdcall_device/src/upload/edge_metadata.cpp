@@ -22,7 +22,7 @@ size_t format_edge_metadata(char* out, size_t capacity,
       "\"dc_block_cutoff_hz\":%.1f,"
       "\"highpass\":{\"type\":\"butterworth\",\"order\":%u,"
       "\"cutoff_hz\":%.1f,\"mode\":\"causal_sosfilt\","
-      "\"applied_to\":\"capture_before_detection\"},"
+      "\"applied_to\":\"detection_only\"},"
       "\"normalization\":{\"method\":\"peak\",\"input_peak\":%.6g,"
       "\"band_peak\":%.6g},"
       "\"energy\":{\"frame_seconds\":%.3f,\"hop_seconds\":%.3f,"

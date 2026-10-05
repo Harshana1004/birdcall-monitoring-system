@@ -4,8 +4,8 @@ synthetic signals.
 
 Reference = edge_reference.edge_pipeline(): the backend's own
 AudioProcessingService steps with the documented on-device
-deviations applied (high-pass before detection, peak gate, no 3 s
-padding, causal sosfilt).
+deviations applied (high-pass for detection only, unfiltered
+upload, peak gate, no 3 s padding, causal sosfilt).
 
 Run from the repo root with the backend venv:
 
@@ -115,6 +115,7 @@ def compare(name: str, audio: np.ndarray, work: Path, check,
     close("threshold", ref.threshold)
     close("peak_threshold", ref.peak_threshold)
     close("band_peak", ref.band_peak)
+    close("input_peak", ref.input_peak)
     check(abs(info["noise_floor_dbfs"] - ref.noise_floor_dbfs) < 0.01,
           f"noise floor {info['noise_floor_dbfs']:.2f} vs {ref.noise_floor_dbfs:.2f} dBFS")
     check(abs(info["loudest_dbfs"] - ref.loudest_dbfs) < 0.01,

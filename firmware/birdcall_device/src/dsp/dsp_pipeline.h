@@ -22,12 +22,14 @@ struct PipelineWorkspace {
   RegionOfInterest* regions;
   size_t region_capacity;
 
-  // Filtered ROI audio is written back-to-back into this arena.
+  // Must hold at least audio_length floats. Used first as the
+  // scratch copy for the high-passed detection signal, then the ROI
+  // audio is written back-to-back into it.
   float* roi_arena;
   size_t roi_arena_capacity;
 };
 
-// One extracted + high-pass filtered ROI, ready for upload.
+// One extracted ROI (unfiltered, peak-normalised), ready for upload.
 // `audio` points into PipelineWorkspace::roi_arena.
 struct ProcessedRoi {
   // Position in the detected region list (matches Python's
@@ -44,6 +46,8 @@ enum class PipelineStatus {
   kAudioTooShort,
   // Energy buffers smaller than the frame count.
   kFrameCapacityTooSmall,
+  // roi_arena smaller than the audio (it holds the detection copy).
+  kArenaTooSmall,
   // Some ROIs were dropped because processed_out or the arena
   // filled up. Returned ROIs are still valid. (detect_regions caps
   // silently at region_capacity, so size `regions` generously.)
@@ -59,11 +63,11 @@ struct PipelineResult {
   // max(ROI_MIN_PEAK_FACTOR x median, the ROI_MIN_PEAK_DBFS floor).
   float peak_threshold;
   float duration_seconds;
-  // Peak absolute amplitude of the capture before filtering and
-  // normalization.
+  // Peak absolute amplitude of the capture (the divisor of the
+  // uploaded, unfiltered audio).
   float input_peak;
-  // Peak absolute amplitude after the high-pass (the normalization
-  // divisor).
+  // Peak absolute amplitude of the high-passed detection copy (its
+  // normalisation divisor).
   float band_peak;
   // Absolute in-band levels of this capture, dBFS (mean-square
   // energy of the smoothed curve, full scale = 1.0): the median is
@@ -82,24 +86,28 @@ size_t pipeline_frame_count(size_t audio_length);
 
 // Runs the full on-device pipeline over one capture buffer:
 //
-//   causal 1 kHz high-pass over the whole capture (in place)
-//     -> peak normalize (in place)
+//   detection copy (in roi_arena): causal 1 kHz high-pass
+//     -> peak normalize
 //     -> short-time energy -> smoothing -> 2 x median threshold
 //     -> active frames -> merge -> peak gate -> filter / pad regions
-//     -> exact ROI extraction (already filtered)
+//   upload: peak normalize the capture (in place, unfiltered)
+//     -> exact ROI extraction
 //
 // Based on AudioProcessingService.process(), with documented edge
 // deviations:
 //   - ROIs are not padded to 3 s (the backend does that);
 //   - the high-pass is single-pass causal, not zero-phase
-//     sosfiltfilt, and runs before detection, so energy is measured
-//     in the band birds use (hum, wind and knocks no longer trigger
-//     ROIs);
+//     sosfiltfilt, and is used for detection only: energy is
+//     measured in the band birds use (hum, wind and knocks do not
+//     trigger ROIs), but the uploaded ROI is unfiltered. BirdNET was
+//     trained on unfiltered audio; on the Western Amazon evaluation
+//     the 1 kHz-filtered upload let BirdNET find ~half as many calls
+//     inside ROIs (evaluation_ea/results/padding_aggregation);
 //   - the peak gate: a region must reach ROI_MIN_PEAK_FACTOR x the
 //     median and the absolute ROI_MIN_PEAK_DBFS floor, so windows
 //     holding only noise produce no ROIs.
 //
-// `audio` is modified in place (filtered and normalized).
+// `audio` is modified in place (peak-normalized, not filtered).
 PipelineResult process_capture(
     float* audio,
     size_t audio_length,
