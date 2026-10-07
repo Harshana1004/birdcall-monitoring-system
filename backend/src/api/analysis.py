@@ -124,11 +124,11 @@ def _validate_upload_filename(
 
     if (
         extension
-        not in settings.allowed_audio_extension_set
+        not in settings.manual_analysis_extension_set
     ):
         allowed_extensions = ", ".join(
             sorted(
-                settings.allowed_audio_extension_set
+                settings.manual_analysis_extension_set
             )
         )
 
@@ -370,7 +370,7 @@ async def analyze_audio(
         UploadFile,
         File(
             description=(
-                "Complete WAV recording to process "
+                "Complete WAV or MP3 recording to process "
                 "through the backend audio-analysis pipeline."
             ),
         ),
@@ -379,7 +379,8 @@ async def analyze_audio(
     user: CurrentUser,
 ) -> AnalysisResponse:
     """
-    Upload and permanently analyse one complete WAV recording.
+    Upload and permanently analyse one complete WAV or MP3
+    recording (MP3 is decoded to WAV first).
 
     The backend performs the preprocessing that is normally
     intended for the ESP32, then stores each detected ROI using

@@ -94,7 +94,7 @@ function ManualAnalysisPage() {
         eyebrow="Manual analysis"
         title="Analyse a recording"
         description={
-          "Upload a WAV recording to detect acoustic " +
+          "Upload a WAV or MP3 recording to detect acoustic " +
           "regions and identify bird species using BirdNET."
         }
         actions={

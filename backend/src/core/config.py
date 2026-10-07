@@ -139,6 +139,12 @@ class Settings(BaseSettings):
         "wav"
     )
 
+    # Manual analysis also accepts compressed formats; they are
+    # decoded to WAV once on upload (libsndfile >= 1.1 reads MP3).
+    manual_analysis_audio_extensions: str = (
+        "wav,mp3"
+    )
+
     roi_duration_tolerance_seconds: float = Field(
         default=0.25,
         ge=0.0,
@@ -285,9 +291,9 @@ class Settings(BaseSettings):
 
         return code
 
-    @property
-    def allowed_audio_extension_set(
-        self,
+    @staticmethod
+    def _extension_set(
+        extensions: str,
     ) -> set[str]:
         return {
             extension
@@ -295,11 +301,27 @@ class Settings(BaseSettings):
             .lower()
             .lstrip(".")
             for extension
-            in self.allowed_audio_extensions.split(
+            in extensions.split(
                 ","
             )
             if extension.strip()
         }
+
+    @property
+    def allowed_audio_extension_set(
+        self,
+    ) -> set[str]:
+        return self._extension_set(
+            self.allowed_audio_extensions
+        )
+
+    @property
+    def manual_analysis_extension_set(
+        self,
+    ) -> set[str]:
+        return self._extension_set(
+            self.manual_analysis_audio_extensions
+        )
 
     @property
     def max_upload_size_bytes(

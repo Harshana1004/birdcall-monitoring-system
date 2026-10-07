@@ -55,7 +55,7 @@ function AudioUpload({
       </h2>
 
       <p className="section-description">
-        Upload a WAV recording to run
+        Upload a WAV or MP3 recording to run
         the complete bird-call
         processing and identification
         pipeline.
@@ -74,7 +74,7 @@ function AudioUpload({
         <input
           ref={inputRef}
           type="file"
-          accept=".wav,audio/wav"
+          accept=".wav,.mp3,audio/wav,audio/mpeg"
           hidden
           onChange={
             handleFileSelection
@@ -99,8 +99,8 @@ function AudioUpload({
         ) : (
           <>
             <strong>
-              Select or drop a WAV
-              recording
+              Select or drop a WAV or
+              MP3 recording
             </strong>
 
             <span>

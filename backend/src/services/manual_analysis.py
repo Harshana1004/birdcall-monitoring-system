@@ -302,7 +302,7 @@ class ManualAnalysisService:
 
         try:
             await asyncio.to_thread(
-                shutil.copy2,
+                self._store_original,
                 source_path,
                 original_path,
             )
@@ -1233,6 +1233,58 @@ class ManualAnalysisService:
     # ========================================================
     # File helpers
     # ========================================================
+
+    @staticmethod
+    def _store_original(
+        source_path: Path,
+        original_path: Path,
+    ) -> None:
+        """
+        Keep the upload as original.wav: WAV files are copied as
+        they are; other formats (MP3) are decoded block by block
+        to 16-bit PCM WAV at their own sample rate and channel
+        count, so everything downstream only ever reads WAV.
+        """
+
+        if source_path.suffix.lower() == ".wav":
+            shutil.copy2(
+                source_path,
+                original_path,
+            )
+            return
+
+        try:
+            with sf.SoundFile(
+                source_path
+            ) as source, sf.SoundFile(
+                original_path,
+                mode="w",
+                samplerate=source.samplerate,
+                channels=source.channels,
+                format="WAV",
+                subtype="PCM_16",
+            ) as output:
+                for block in source.blocks(
+                    blocksize=65536,
+                    dtype="float32",
+                    always_2d=True,
+                ):
+                    output.write(
+                        block
+                    )
+
+        except (
+            sf.LibsndfileError,
+            RuntimeError,
+        ) as exception:
+            original_path.unlink(
+                missing_ok=True
+            )
+
+            raise InvalidAudioFileError(
+                "The uploaded file could not be decoded as "
+                f"{source_path.suffix.lstrip('.').upper()} audio."
+            ) from exception
 
     @staticmethod
     def _write_roi_wav(
