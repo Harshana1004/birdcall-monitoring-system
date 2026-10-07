@@ -10,6 +10,7 @@ import {
   deleteDevice,
   listDevices,
   regenerateClaimCode,
+  updateDevice,
 } from "../api/devicesApi";
 import { useAuth } from "../auth/AuthContext";
 import { Alert, LoadingState, PageHeader } from "../components/ui";
@@ -156,6 +157,12 @@ function DeviceRow({ device, onChanged, onClaimCode, onError }) {
       <td>
         <Link to={`/devices/${device.id}`}>{device.name}</Link>
         <div className="small faint mono">{device.device_code}</div>
+        {device.is_shared && (
+          <span className="badge badge-green" style={{ marginTop: 4 }}
+            title="Every signed-in account can view this device">
+            Shared
+          </span>
+        )}
       </td>
       <td>
         {device.owner ? (
@@ -172,6 +179,14 @@ function DeviceRow({ device, onChanged, onClaimCode, onError }) {
             <button type="button" className="button button-secondary button-small" disabled={isBusy}
               onClick={() => run(async () => onClaimCode(await regenerateClaimCode(device.id)))}>
               New claim code
+            </button>
+            <button type="button" className="button button-secondary button-small" disabled={isBusy}
+              title={device.is_shared
+                ? "Only the owner and admins will see this device"
+                : "Every signed-in account will see this device (read-only)"}
+              onClick={() => run(async () =>
+                onChanged(await updateDevice(device.id, { is_shared: !device.is_shared })))}>
+              {device.is_shared ? "Stop sharing" : "Share"}
             </button>
             <button type="button" className="button button-secondary button-small" disabled={isBusy}
               onClick={() => setMode("assign")}>

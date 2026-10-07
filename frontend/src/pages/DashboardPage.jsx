@@ -7,22 +7,30 @@ import DetectionTable from "../components/DetectionTable";
 import {
   Alert,
   EmptyState,
+  LiveIndicator,
   LoadingState,
   PageHeader,
   StatCard,
 } from "../components/ui";
 import { useApi } from "../hooks/useApi";
+import { useNewIds, usePolling } from "../hooks/usePolling";
 import { formatNumber, formatRelative } from "../utils/format";
+
+
+const REFRESH_SECONDS = 15;
 
 
 function DashboardPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const { data, error, isLoading } = useApi(
+  const { data, error, isLoading, reload } = useApi(
     () => getDashboard({ days: 14, recent: 8 }),
     []
   );
+
+  usePolling(() => reload({ silent: true }), REFRESH_SECONDS * 1000);
+  const newDetections = useNewIds(data?.recent_detections);
 
   const name = user?.display_name || user?.email?.split("@")[0];
 
@@ -30,7 +38,12 @@ function DashboardPage() {
   return (
     <main className="page">
       <PageHeader
-        eyebrow={isAdmin ? "Overview · all devices" : "Overview"}
+        eyebrow={
+          <span className="row" style={{ gap: 12 }}>
+            {isAdmin ? "Overview · all devices" : "Overview"}
+            <LiveIndicator seconds={REFRESH_SECONDS} />
+          </span>
+        }
         //title={`Welcome back, ${name}`}
         description="What your monitoring devices have been hearing."
         actions={
@@ -140,7 +153,7 @@ function DashboardPage() {
                 appears here.
               </div>
             ) : (
-              <DetectionTable detections={data.recent_detections} />
+              <DetectionTable detections={data.recent_detections} highlightIds={newDetections} />
             )}
           </section>
         </>

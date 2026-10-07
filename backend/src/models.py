@@ -194,6 +194,15 @@ class Device(Base):
         server_default="true",
     )
 
+    # Shared devices are visible (read-only) to every signed-in
+    # user, e.g. a demonstration device at an exhibition.
+    is_shared: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+
     # --------------------------------------------------------
     # Ownership
     # --------------------------------------------------------

@@ -13,6 +13,7 @@ from fastapi import (
 from sqlalchemy import (
     and_,
     func,
+    or_,
     select,
 )
 from sqlalchemy.ext.asyncio import (
@@ -70,7 +71,10 @@ async def get_dashboard(
     device_condition = (
         not_manual
         if user.is_admin
-        else and_(not_manual, Device.owner_id == user.id)
+        else and_(
+            not_manual,
+            or_(Device.owner_id == user.id, Device.is_shared.is_(True)),
+        )
     )
 
     scope = Recording.device_id.in_(

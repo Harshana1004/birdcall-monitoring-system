@@ -88,6 +88,17 @@ export function ConfidenceBadge({ confidence }) {
 }
 
 
+/** Pulsing "Live" marker for pages that refresh themselves. */
+export function LiveIndicator({ seconds }) {
+  return (
+    <span className="live-indicator" title={`Refreshes every ${seconds} s`}>
+      <span className="live-dot" />
+      Live
+    </span>
+  );
+}
+
+
 export function SpeciesName({ common, scientific }) {
   return (
     <div style={{ minWidth: 0 }}>

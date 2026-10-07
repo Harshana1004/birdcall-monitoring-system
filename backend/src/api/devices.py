@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import (
 
 from src.api.access import (
     device_visibility,
+    get_managed_device,
     get_visible_device,
 )
 from src.api.auth import (
@@ -173,6 +174,7 @@ async def build_device_responses(
                 ),
                 installed_at=device.installed_at,
                 is_active=device.is_active,
+                is_shared=device.is_shared,
                 created_at=device.created_at,
                 updated_at=device.updated_at,
                 owner=(
@@ -635,17 +637,19 @@ async def update_device(
 ) -> DeviceResponse:
     """
     Owners may edit name, description, location and install date;
-    admins may also change the device code and active flag.
+    admins may also change the device code and the active and
+    shared flags.
     """
 
-    device = await get_visible_device(session, user, device_id)
+    device = await get_managed_device(session, user, device_id)
     ensure_not_system_device(device)
 
     update_data = data.model_dump(exclude_unset=True)
 
     if not user.is_admin and not set(update_data) <= OWNER_EDITABLE_FIELDS:
         raise PermissionDeniedError(
-            "Only an admin can change the device code or active state."
+            "Only an admin can change the device code, active state "
+            "or sharing."
         )
 
     new_code = update_data.get("device_code")
@@ -687,7 +691,7 @@ async def release_device(
     recordings stay; whoever claims it next will see them.
     """
 
-    device = await get_visible_device(session, user, device_id)
+    device = await get_managed_device(session, user, device_id)
     ensure_not_system_device(device)
 
     device.owner_id = None

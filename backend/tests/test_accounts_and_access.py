@@ -277,6 +277,33 @@ def test_full_flow(ctx):
     assert assigned.status_code == 200 and assigned.json()["owner"]["email"] == email("bob")
     assert client.get(f"/api/v1/recordings/{recording_id}", headers=bearer(bob)).status_code == 200
 
+    # ---- shared devices: read-only for every signed-in user ----------
+    assert client.patch(
+        f"/api/v1/devices/{device_id}", json={"is_shared": True}, headers=bearer(bob)
+    ).status_code == 403
+    shared = client.patch(
+        f"/api/v1/devices/{device_id}", json={"is_shared": True}, headers=bearer(admin_token)
+    )
+    assert shared.status_code == 200 and shared.json()["is_shared"] is True
+
+    assert [d["id"] for d in client.get("/api/v1/devices", headers=bearer(alice)).json()["items"]] == [device_id]
+    assert client.get(f"/api/v1/devices/{device_id}", headers=bearer(alice)).status_code == 200
+    assert client.get(
+        f"/api/v1/devices/{device_id}/recordings", headers=bearer(alice)
+    ).json()["pagination"]["total_items"] == 1
+    assert client.get(f"/api/v1/recordings/{recording_id}/audio", headers=bearer(alice)).status_code == 200
+    assert client.get("/api/v1/detections", headers=bearer(alice)).json()["pagination"]["total_items"] == 1
+    assert client.get("/api/v1/dashboard", headers=bearer(alice)).json()["detection_count"] == 1
+
+    assert client.patch(
+        f"/api/v1/devices/{device_id}", json={"name": "Alice's now"}, headers=bearer(alice)
+    ).status_code == 403
+    assert client.delete(f"/api/v1/devices/{device_id}/owner", headers=bearer(alice)).status_code == 403
+    assert client.delete(f"/api/v1/recordings/{recording_id}", headers=bearer(alice)).status_code == 403
+
+    client.patch(f"/api/v1/devices/{device_id}", json={"is_shared": False}, headers=bearer(admin_token))
+    assert client.get(f"/api/v1/devices/{device_id}", headers=bearer(alice)).status_code == 404
+
     new_code = client.post(
         f"/api/v1/devices/{device_id}/claim-code", headers=bearer(admin_token)
     ).json()["claim_code"]

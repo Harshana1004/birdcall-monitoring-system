@@ -662,6 +662,7 @@ async def delete_recording(
         session,
         user,
         recording_id,
+        modify=True,
     )
 
     service = RecordingService(

@@ -12,6 +12,7 @@ import {
   PageHeader,
 } from "../components/ui";
 import { useApi } from "../hooks/useApi";
+import { usePolling } from "../hooks/usePolling";
 import { activityState, formatNumber, formatRelative } from "../utils/format";
 
 
@@ -100,7 +101,10 @@ const STATE_LABELS = {
 };
 
 
-function DeviceCard({ device, showOwner }) {
+const REFRESH_SECONDS = 30;
+
+
+function DeviceCard({ device, showOwner, isViewer }) {
   const state = activityState(device.last_recording_at);
 
   return (
@@ -112,6 +116,11 @@ function DeviceCard({ device, showOwner }) {
         </div>
         <span className="spacer" />
         {!device.is_active && <span className="badge badge-warning">Inactive</span>}
+        {device.is_shared && (
+          <span className="badge badge-green" title="Every signed-in account can view this device">
+            {isViewer ? "Shared · view only" : "Shared"}
+          </span>
+        )}
       </div>
 
       <div className="device-metrics">
@@ -147,13 +156,15 @@ function DeviceCard({ device, showOwner }) {
 
 
 function DevicesPage() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [notice, setNotice] = useState(null);
 
   const showForm = searchParams.get("add") === "1";
 
   const { data, error, isLoading, reload } = useApi(() => listDevices(), []);
+
+  usePolling(() => reload({ silent: true }), REFRESH_SECONDS * 1000);
 
 
   function setShowForm(show) {
@@ -176,7 +187,7 @@ function DevicesPage() {
       <PageHeader
         eyebrow={isAdmin ? "All devices" : "Your devices"}
         title="Devices"
-        description="Monitoring nodes linked to your account. Open one to see its recordings and detections."
+        description="Monitoring nodes linked to your account, and any shared with everyone. Open one to see its recordings and detections."
         actions={
           !showForm && (
             <button type="button" className="button button-primary" onClick={() => setShowForm(true)}>
@@ -207,7 +218,12 @@ function DevicesPage() {
       {devices.length > 0 && (
         <div className="device-grid">
           {devices.map((device) => (
-            <DeviceCard key={device.id} device={device} showOwner={isAdmin} />
+            <DeviceCard
+              key={device.id}
+              device={device}
+              showOwner={isAdmin}
+              isViewer={!isAdmin && device.owner?.id !== user?.id}
+            />
           ))}
         </div>
       )}

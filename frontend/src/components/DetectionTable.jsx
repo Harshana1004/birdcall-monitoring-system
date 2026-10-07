@@ -5,8 +5,11 @@ import RecordingAudio from "./RecordingAudio";
 import { ConfidenceBadge, SpeciesName } from "./ui";
 
 
-/** Detection feed rows (DetectionFeedItem from the API). */
-function DetectionTable({ detections, showDevice = true }) {
+/**
+ * Detection feed rows (DetectionFeedItem from the API). Rows whose id
+ * is in `highlightIds` are marked as newly arrived.
+ */
+function DetectionTable({ detections, showDevice = true, highlightIds }) {
   return (
     <div className="table-wrap">
       <table className="table">
@@ -22,7 +25,7 @@ function DetectionTable({ detections, showDevice = true }) {
 
         <tbody>
           {detections.map((detection) => (
-            <tr key={detection.id}>
+            <tr key={detection.id} className={highlightIds?.has(detection.id) ? "is-new" : undefined}>
               <td style={{ whiteSpace: "nowrap" }}>
                 <div>{formatDateTime(detection.detected_at)}</div>
                 <div className="small faint">{formatRelative(detection.detected_at)}</div>

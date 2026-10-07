@@ -10,15 +10,18 @@ import { listDevices } from "../api/devicesApi";
 import DetectionTable from "../components/DetectionTable";
 import {
   Alert,
+  LiveIndicator,
   LoadingState,
   PageHeader,
   Pagination,
 } from "../components/ui";
 import { useApi } from "../hooks/useApi";
+import { useNewIds, usePolling } from "../hooks/usePolling";
 import { localInputToIso } from "../utils/format";
 
 
 const PAGE_SIZE = 25;
+const REFRESH_SECONDS = 15;
 
 
 function DetectionsPage() {
@@ -74,7 +77,7 @@ function DetectionsPage() {
 
   const devices = useApi(() => listDevices(), []);
 
-  const { data, error, isLoading } = useApi(
+  const { data, error, isLoading, reload } = useApi(
     () =>
       listDetections({
         page: filters.page,
@@ -89,6 +92,9 @@ function DetectionsPage() {
     [searchParams.toString()]
   );
 
+  usePolling(() => reload({ silent: true }), REFRESH_SECONDS * 1000);
+  const newDetections = useNewIds(data?.items, searchParams.toString());
+
   const hasFilters = Boolean(
     filters.device || filters.species || filters.from || filters.to || filters.confidence || filters.manual
   );
@@ -97,7 +103,12 @@ function DetectionsPage() {
   return (
     <main className="page">
       <PageHeader
-        eyebrow="History"
+        eyebrow={
+          <span className="row" style={{ gap: 12 }}>
+            History
+            <LiveIndicator seconds={REFRESH_SECONDS} />
+          </span>
+        }
         title="Detections"
         description="Every species identification from your devices, newest first. Use the filters to look back over any period."
       />
@@ -181,7 +192,7 @@ function DetectionsPage() {
 
         {data && data.items.length > 0 && (
           <div style={{ opacity: isLoading ? 0.6 : 1 }}>
-            <DetectionTable detections={data.items} />
+            <DetectionTable detections={data.items} highlightIds={newDetections} />
           </div>
         )}
 

@@ -338,6 +338,9 @@ class DeviceUpdate(BaseModel):
 
     is_active: bool | None = None
 
+    # Admin only: visible (read-only) to every signed-in user.
+    is_shared: bool | None = None
+
     @field_validator(
         "region_code"
     )
@@ -415,6 +418,7 @@ class DeviceResponse(
     # e.g. "Kandy District"; None when region_code is unset.
     region_name: str | None = None
 
+    is_shared: bool = False
     owner: DeviceOwnerSummary | None = None
     claimed_at: datetime | None = None
     has_claim_code: bool = False

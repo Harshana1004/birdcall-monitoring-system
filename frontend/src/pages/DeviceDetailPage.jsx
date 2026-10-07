@@ -27,12 +27,14 @@ import {
   Alert,
   ConfidenceBadge,
   EmptyState,
+  LiveIndicator,
   LoadingState,
   PageHeader,
   Pagination,
   StatCard,
 } from "../components/ui";
 import { useApi } from "../hooks/useApi";
+import { useNewIds, usePolling } from "../hooks/usePolling";
 import {
   activityState,
   formatDate,
@@ -46,7 +48,11 @@ import {
 
 
 const PAGE_SIZE = 15;
-const POLL_INTERVAL_MS = 5000;
+// The timeline refreshes itself so new uploads appear without a
+// reload; faster while BirdNET is still working on a listed snippet.
+const REFRESH_SECONDS = 10;
+const PROCESSING_REFRESH_SECONDS = 5;
+const TOTALS_REFRESH_SECONDS = 30;
 const PROCESSING_STATES = new Set(["pending", "processing"]);
 
 const STATUS_BADGES = {
@@ -163,9 +169,9 @@ function EditDeviceForm({ device, onSaved, onCancel }) {
 // Recording timeline
 // ------------------------------------------------------------
 
-function TimelineItem({ recording }) {
+function TimelineItem({ recording, isNew }) {
   return (
-    <article className="timeline-item">
+    <article className={isNew ? "timeline-item is-new" : "timeline-item"}>
       <div className="timeline-time">
         <strong>{formatTime(recording.recorded_at)}</strong>
         <span>{formatDate(recording.recorded_at)}</span>
@@ -186,6 +192,7 @@ function TimelineItem({ recording }) {
             )
           )}
           {STATUS_BADGES[recording.processing_status]}
+          {isNew && <span className="badge badge-lime">New</span>}
           <span className="spacer" />
           <RecordingAudio recordingId={recording.id} compact />
         </div>
@@ -223,7 +230,7 @@ function TimelineItem({ recording }) {
 }
 
 
-function RecordingTimeline({ deviceId, species, onProcessingFinished }) {
+function RecordingTimeline({ deviceId, species, onNewData }) {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     dateFrom: "",
@@ -249,27 +256,34 @@ function RecordingTimeline({ deviceId, species, onProcessingFinished }) {
   );
 
 
-  // While BirdNET is still working on any listed snippet, poll every
-  // few seconds; when it finishes, let the page refresh its totals.
   const isProcessing = Boolean(
     data?.items.some((item) => PROCESSING_STATES.has(item.processing_status))
   );
-  const wasProcessing = useRef(false);
+
+  usePolling(
+    () => reload({ silent: true }),
+    (isProcessing ? PROCESSING_REFRESH_SECONDS : REFRESH_SECONDS) * 1000
+  );
+
+  const newIds = useNewIds(data?.items, `${page}|${JSON.stringify(filters)}`);
+
+  // When something new arrives or BirdNET finishes a snippet, let the
+  // page refresh its totals and charts too.
+  const signature = data
+    ? `${data.pagination.total_items}|${data.items[0]?.id ?? ""}|${isProcessing}`
+    : null;
+  const lastSignature = useRef(null);
 
   useEffect(() => {
-    if (wasProcessing.current && !isProcessing) {
-      onProcessingFinished?.();
-    }
-    wasProcessing.current = isProcessing;
-
-    if (!isProcessing) {
-      return undefined;
+    if (signature === null) {
+      return;
     }
 
-    const timer = setTimeout(() => reload({ silent: true }), POLL_INTERVAL_MS);
-
-    return () => clearTimeout(timer);
-  }, [data, isProcessing, reload, onProcessingFinished]);
+    if (lastSignature.current !== null && lastSignature.current !== signature) {
+      onNewData?.();
+    }
+    lastSignature.current = signature;
+  }, [signature, onNewData]);
 
 
   function setFilter(field, value) {
@@ -285,6 +299,7 @@ function RecordingTimeline({ deviceId, species, onProcessingFinished }) {
           <h2>Recording timeline</h2>
           <p>Every ROI snippet this device uploaded, newest first, with BirdNET's results.</p>
         </div>
+        <LiveIndicator seconds={isProcessing ? PROCESSING_REFRESH_SECONDS : REFRESH_SECONDS} />
       </div>
 
       <div className="filters">
@@ -342,7 +357,7 @@ function RecordingTimeline({ deviceId, species, onProcessingFinished }) {
       {data && data.items.length > 0 && (
         <div className="timeline" style={{ opacity: isLoading ? 0.6 : 1 }}>
           {data.items.map((recording) => (
-            <TimelineItem key={recording.id} recording={recording} />
+            <TimelineItem key={recording.id} recording={recording} isNew={newIds.has(recording.id)} />
           ))}
         </div>
       )}
@@ -365,6 +380,7 @@ function DeviceDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [isSharing, setIsSharing] = useState(false);
 
   const device = useApi(() => getDevice(deviceId), [deviceId]);
   const summary = useApi(() => getDeviceSummary(deviceId, 30), [deviceId]);
@@ -375,6 +391,24 @@ function DeviceDetailPage() {
     reloadDevice({ silent: true });
     reloadSummary({ silent: true });
   }, [reloadDevice, reloadSummary]);
+
+  // Keeps "last upload" and the charts current even when the
+  // timeline's filters hide new snippets.
+  usePolling(refreshTotals, TOTALS_REFRESH_SECONDS * 1000);
+
+
+  async function handleToggleShared() {
+    setActionError(null);
+    setIsSharing(true);
+
+    try {
+      device.setData(await updateDevice(deviceId, { is_shared: !device.data.is_shared }));
+    } catch (requestError) {
+      setActionError(errorMessage(requestError, "Could not change sharing."));
+    } finally {
+      setIsSharing(false);
+    }
+  }
 
 
   async function handleRelease() {
@@ -410,6 +444,7 @@ function DeviceDetailPage() {
   const stats = summary.data;
   const state = activityState(info.last_recording_at);
   const isOwner = info.owner?.id === user?.id;
+  const canManage = isOwner || isAdmin;
 
 
   return (
@@ -421,16 +456,27 @@ function DeviceDetailPage() {
         title={info.name}
         description={info.description || undefined}
         actions={
+          canManage && (
           <>
+            {isAdmin && (
+              <button type="button" className="button button-secondary" disabled={isSharing}
+                onClick={handleToggleShared}
+                title={info.is_shared
+                  ? "Only the owner and admins will see this device"
+                  : "Every signed-in account will see this device (read-only)"}>
+                {info.is_shared ? "Stop sharing" : "Share with everyone"}
+              </button>
+            )}
             <button type="button" className="button button-secondary" onClick={() => setIsEditing(true)}>
               Edit
             </button>
-            {(isOwner || isAdmin) && info.owner && (
+            {info.owner && (
               <button type="button" className="button button-danger" onClick={() => setConfirmRelease(true)}>
                 Remove from account
               </button>
             )}
           </>
+          )
         }
       />
 
@@ -442,6 +488,12 @@ function DeviceDetailPage() {
             : "No uploads yet"}
         </span>
         {!info.is_active && <span className="badge badge-warning">Inactive</span>}
+        {info.is_shared && (
+          <span className="badge badge-green"
+            title="Every signed-in account can view this device">
+            {canManage ? "Shared with everyone" : "Shared with you · view only"}
+          </span>
+        )}
         {info.latitude != null && info.longitude != null ? (
           <span className="faint">
             · {Number(info.latitude).toFixed(4)}, {Number(info.longitude).toFixed(4)}
@@ -530,7 +582,7 @@ function DeviceDetailPage() {
           <RecordingTimeline
             deviceId={deviceId}
             species={stats?.top_species ?? []}
-            onProcessingFinished={refreshTotals}
+            onNewData={refreshTotals}
           />
         </>
       )}
